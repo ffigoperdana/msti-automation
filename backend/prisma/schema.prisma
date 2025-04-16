@@ -1,0 +1,103 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String          @id @default(uuid())
+  email        String          @unique
+  password_hash String
+  role         String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  dataSources  DataSource[]
+  alertRules   AlertRule[]
+  ansibleConfigs AnsibleConfig[]
+  variables    Variable[]
+}
+
+model DataSource {
+  id          String        @id @default(uuid())
+  userId      String
+  name        String
+  url         String
+  token       String
+  database    String
+  measurement String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  user        User          @relation(fields: [userId], references: [id])
+  visualizations Visualization[]
+  variables   Variable[]
+}
+
+model AlertRule {
+  id                 String   @id @default(uuid())
+  userId             String
+  queryId            String?
+  threshold          Float
+  comparison_operator String
+  alertContactPointId String?
+  enabled            Boolean  @default(true)
+  dataSourceId       String?
+  metric_path        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User     @relation(fields: [userId], references: [id])
+}
+
+model AnsibleConfig {
+  id         String            @id @default(uuid())
+  userId     String
+  name       String
+  config_file String
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  user       User              @relation(fields: [userId], references: [id])
+  playbooks  AnsiblePlaybook[]
+}
+
+model AnsiblePlaybook {
+  id              String       @id @default(uuid())
+  ansibleConfigId String
+  name            String
+  playbook_file   String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  ansibleConfig   AnsibleConfig @relation(fields: [ansibleConfigId], references: [id])
+}
+
+model Visualization {
+  id          String   @id @default(uuid())
+  name        String
+  type        String
+  config      Json?
+  queryConfig Json?
+  dataSourceId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  dataSource  DataSource? @relation(fields: [dataSourceId], references: [id])
+}
+
+model Variable {
+  id          String   @id @default(uuid())
+  name        String
+  label       String?
+  type        String   // query, custom, interval, etc.
+  query       String?
+  options     Json?    // Possible values
+  current     String?  // Current selected value
+  dataSourceId String?
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id])
+  dataSource  DataSource? @relation(fields: [dataSourceId], references: [id])
+}

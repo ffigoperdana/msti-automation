@@ -1,0 +1,990 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "MSTI Automation API",
+    "version": "1.0.0",
+    "description": "API documentation for MSTI Automation Backend"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Development server"
+    }
+  ],
+  "paths": {
+    "/api/visualizations": {
+      "get": {
+        "summary": "Get all visualizations",
+        "tags": ["Visualization"],
+        "responses": {
+          "200": {
+            "description": "List of all visualizations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Visualization"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new visualization",
+        "tags": ["Visualization"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "config": {
+                    "type": "object"
+                  },
+                  "queryConfig": {
+                    "type": "object"
+                  },
+                  "dataSourceId": {
+                    "type": "string"
+                  }
+                },
+                "required": ["name", "type"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Visualization created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Visualization"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/visualizations/{id}": {
+      "get": {
+        "summary": "Get visualization by ID",
+        "tags": ["Visualization"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Visualization found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Visualization"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Visualization not found"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update visualization by ID",
+        "tags": ["Visualization"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "config": {
+                    "type": "object"
+                  },
+                  "queryConfig": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Visualization updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Visualization"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete visualization by ID",
+        "tags": ["Visualization"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Visualization deleted successfully"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/visualizations/flux-query": {
+      "post": {
+        "summary": "Execute raw Flux query",
+        "tags": ["Visualization"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dataSourceId": {
+                    "type": "string"
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "variables": {
+                    "type": "object"
+                  }
+                },
+                "required": ["dataSourceId", "query"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Query executed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/data-sources": {
+      "get": {
+        "summary": "Get all data sources",
+        "tags": ["Data Source"],
+        "responses": {
+          "200": {
+            "description": "List of all data sources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DataSource"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new data source",
+        "tags": ["Data Source"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "token": {
+                    "type": "string"
+                  },
+                  "database": {
+                    "type": "string"
+                  },
+                  "measurement": {
+                    "type": "string"
+                  }
+                },
+                "required": ["userId", "name", "url", "token", "database"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Data source created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataSource"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/data-sources/test-connection": {
+      "post": {
+        "summary": "Test connection to InfluxDB",
+        "tags": ["Data Source"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "token": {
+                    "type": "string"
+                  },
+                  "database": {
+                    "type": "string"
+                  }
+                },
+                "required": ["url", "token", "database"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connection successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "buckets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Connection failed"
+          }
+        }
+      }
+    },
+    "/api/ansible-playbooks": {
+      "get": {
+        "summary": "Get all Ansible Playbooks",
+        "tags": ["Ansible Playbook"],
+        "responses": {
+          "200": {
+            "description": "List of all Ansible playbooks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AnsiblePlaybook"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new Ansible Playbook",
+        "tags": ["Ansible Playbook"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ansibleConfigId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "playbook_file": {
+                    "type": "string"
+                  }
+                },
+                "required": ["ansibleConfigId", "name", "playbook_file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ansible Playbook created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnsiblePlaybook"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/ansible-playbooks/{id}": {
+      "get": {
+        "summary": "Get Ansible Playbook by ID",
+        "tags": ["Ansible Playbook"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ansible Playbook found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnsiblePlaybook"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ansible Playbook not found"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update Ansible Playbook by ID",
+        "tags": ["Ansible Playbook"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "playbook_file": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ansible Playbook updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnsiblePlaybook"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Ansible Playbook by ID",
+        "tags": ["Ansible Playbook"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Ansible Playbook deleted successfully"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/ansible-configs": {
+      "get": {
+        "summary": "Get all Ansible Configs",
+        "tags": ["Ansible Config"],
+        "responses": {
+          "200": {
+            "description": "List of all Ansible configs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AnsibleConfig"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new Ansible Config",
+        "tags": ["Ansible Config"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "config_file": {
+                    "type": "string"
+                  }
+                },
+                "required": ["userId", "name", "config_file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ansible Config created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnsibleConfig"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/ansible-configs/{id}": {
+      "get": {
+        "summary": "Get Ansible Config by ID",
+        "tags": ["Ansible Config"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ansible Config found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnsibleConfig"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Ansible Config not found"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "put": {
+        "summary": "Update Ansible Config by ID",
+        "tags": ["Ansible Config"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "config_file": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ansible Config updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnsibleConfig"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Ansible Config by ID",
+        "tags": ["Ansible Config"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Ansible Config deleted successfully"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "summary": "Get all users",
+        "tags": ["User"],
+        "responses": {
+          "200": {
+            "description": "List of all users",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/User"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new user",
+        "tags": ["User"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password_hash": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string"
+                  }
+                },
+                "required": ["email", "password_hash", "role"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/alert-rules": {
+      "get": {
+        "summary": "Get all alert rules",
+        "tags": ["Alert Rule"],
+        "responses": {
+          "200": {
+            "description": "List of all alert rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AlertRule"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new alert rule",
+        "tags": ["Alert Rule"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userId": {
+                    "type": "string"
+                  },
+                  "queryId": {
+                    "type": "string"
+                  },
+                  "threshold": {
+                    "type": "number"
+                  },
+                  "comparison_operator": {
+                    "type": "string",
+                    "enum": ["gt", "lt", "eq", "gte", "lte"]
+                  },
+                  "alertContactPointId": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": ["userId", "queryId", "threshold", "comparison_operator", "alertContactPointId", "enabled"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Alert rule created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRule"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Visualization": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "config": {
+            "type": "object"
+          },
+          "queryConfig": {
+            "type": "object"
+          },
+          "dataSourceId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DataSource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "token": {
+            "type": "string"
+          },
+          "database": {
+            "type": "string"
+          },
+          "measurement": {
+            "type": "string"
+          }
+        }
+      },
+      "AnsiblePlaybook": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ansibleConfigId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "playbook_file": {
+            "type": "string"
+          }
+        }
+      },
+      "AnsibleConfig": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "config_file": {
+            "type": "string"
+          }
+        }
+      },
+      "AlertRule": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "queryId": {
+            "type": "string"
+          },
+          "threshold": {
+            "type": "number"
+          },
+          "comparison_operator": {
+            "type": "string",
+            "enum": ["gt", "lt", "eq", "gte", "lte"]
+          },
+          "alertContactPointId": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password_hash": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
