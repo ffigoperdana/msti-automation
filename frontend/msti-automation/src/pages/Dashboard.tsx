@@ -30,7 +30,7 @@ ChartJS.register(
 const DUMMY_DASHBOARDS: Record<string, { name: string; description: string }> = {
   '1': { 
     name: 'Production Overview',
-    description: 'Overview of production server metrics'
+    description: 'Overview of production server metricss'
   },
   '2': {
     name: 'Development Environment',
