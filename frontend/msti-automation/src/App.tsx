@@ -9,6 +9,16 @@ import AlertRuleForm from './pages/alerting/forms/AlertRuleForm'
 import NewConnection from './pages/connections/NewConnection'
 import DataSources from './pages/connections/DataSources'
 import InfluxDBForm from './pages/connections/datasource-forms/InfluxDBForm'
+import WebhookList from './pages/automation/webhook/WebhookList'
+import WebhookForm from './pages/automation/webhook/WebhookForm'
+import AnsibleServerList from './pages/automation/ansible/server/ServerList'
+import ServerForm from './pages/automation/ansible/server/ServerForm'
+import ConfigList from './pages/automation/ansible/config/ConfigList'
+import ConfigForm from './pages/automation/ansible/config/ConfigForm'
+import InventoryList from './pages/automation/ansible/inventory/InventoryList'
+import InventoryForm from './pages/automation/ansible/inventory/InventoryForm'
+import ScenarioList from './pages/automation/ansible/scenario/ScenarioList'
+import ScenarioForm from './pages/automation/ansible/scenario/ScenarioForm'
 import { SourceProvider } from './context/SourceContext'
 import './App.css'
 import ContactPointsList from './pages/alerting/contacts/ContactPointsList'
@@ -41,6 +51,33 @@ function App() {
             <Route path="/connections/new" element={<NewConnection />} />
             <Route path="/connections/data-sources" element={<DataSources />} />
             <Route path="/connections/data-sources/new/influxdb" element={<InfluxDBForm />} />
+            
+            {/* Automation Routes */}
+            {/* Webhook Routes */}
+            <Route path="/automation/webhook" element={<WebhookList />} />
+            <Route path="/automation/webhook/new" element={<WebhookForm />} />
+            <Route path="/automation/webhook/edit/:id" element={<WebhookForm />} />
+            
+            {/* Ansible Routes */}
+            {/* Server Routes */}
+            <Route path="/automation/ansible/server" element={<AnsibleServerList />} />
+            <Route path="/automation/ansible/server/new" element={<ServerForm />} />
+            <Route path="/automation/ansible/server/edit/:id" element={<ServerForm />} />
+            
+            {/* Config Routes */}
+            <Route path="/automation/ansible/config" element={<ConfigList />} />
+            <Route path="/automation/ansible/config/new" element={<ConfigForm />} />
+            <Route path="/automation/ansible/config/edit/:id" element={<ConfigForm />} />
+            
+            {/* Inventory Routes */}
+            <Route path="/automation/ansible/inventory" element={<InventoryList />} />
+            <Route path="/automation/ansible/inventory/new" element={<InventoryForm />} />
+            <Route path="/automation/ansible/inventory/edit/:id" element={<InventoryForm />} />
+            
+            {/* Scenario Routes */}
+            <Route path="/automation/ansible/scenario" element={<ScenarioList />} />
+            <Route path="/automation/ansible/scenario/new" element={<ScenarioForm />} />
+            <Route path="/automation/ansible/scenario/:id" element={<ScenarioForm />} />
           </Routes>
         </Layout>
       </Router>

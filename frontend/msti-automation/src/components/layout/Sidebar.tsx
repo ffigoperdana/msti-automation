@@ -6,16 +6,30 @@ interface SidebarProps {
   onClose: () => void;
 }
 
+interface SubMenuItem {
+  title: string;
+  path: string;
+}
+
+interface MenuChild {
+  title: string;
+  path: string;
+  isSubmenu?: boolean;
+  children?: SubMenuItem[];
+}
+
 interface MenuItem {
   title: string;
   path?: string;
   icon: string;
-  children?: { title: string; path: string }[];
+  children?: MenuChild[];
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   // State untuk mengontrol dropdown mana yang terbuka
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+  // State untuk submenu Ansible yang terbuka
+  const [openAnsibleSubmenu, setOpenAnsibleSubmenu] = useState(false);
 
   const menuItems: MenuItem[] = [
     { 
@@ -42,6 +56,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         { title: 'Data Sources', path: '/connections/data-sources' }
       ]
     },
+    { 
+      title: 'Automation', 
+      icon: '🤖',
+      children: [
+        { title: 'Webhook', path: '/automation/webhook' },
+        { title: 'Ansible', path: '#', isSubmenu: true, children: [
+          { title: 'Server', path: '/automation/ansible/server' },
+          { title: 'Config', path: '/automation/ansible/config' },
+          { title: 'Scenario', path: '/automation/ansible/scenario' },
+          { title: 'Inventory', path: '/automation/ansible/inventory' }
+        ]}
+      ]
+    },
     { title: 'Settings', path: '/settings', icon: '⚙️' },
   ];
 
@@ -50,6 +77,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       ...prev,
       [title]: !prev[title]
     }));
+  };
+
+  const toggleAnsibleSubmenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setOpenAnsibleSubmenu(!openAnsibleSubmenu);
   };
 
   return (
@@ -124,14 +157,54 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                     {openMenus[item.title] && (
                       <div className="mt-1 ml-6 space-y-1">
                         {item.children.map((child) => (
-                          <Link
-                            key={child.path}
-                            to={child.path}
-                            onClick={onClose}
-                            className="block px-4 py-2 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
-                          >
-                            {child.title}
-                          </Link>
+                          child.isSubmenu ? (
+                            <div key={child.title}>
+                              <button
+                                onClick={toggleAnsibleSubmenu}
+                                className="w-full flex items-center justify-between px-4 py-2 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
+                              >
+                                <span>{child.title}</span>
+                                <svg
+                                  className={`w-4 h-4 transition-transform ${openAnsibleSubmenu ? 'rotate-180' : ''}`}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M19 9l-7 7-7-7"
+                                  />
+                                </svg>
+                              </button>
+                              
+                              {/* Ansible submenu */}
+                              {openAnsibleSubmenu && child.children && (
+                                <div className="mt-1 ml-4 space-y-1">
+                                  {child.children.map((subChild) => (
+                                    <Link
+                                      key={subChild.path}
+                                      to={subChild.path}
+                                      onClick={onClose}
+                                      className="block px-4 py-2 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
+                                    >
+                                      {subChild.title}
+                                    </Link>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <Link
+                              key={child.path}
+                              to={child.path}
+                              onClick={onClose}
+                              className="block px-4 py-2 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
+                            >
+                              {child.title}
+                            </Link>
+                          )
                         ))}
                       </div>
                     )}
