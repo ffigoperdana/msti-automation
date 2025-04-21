@@ -2,33 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 // Data dummy untuk inventory
-const MOCK_INVENTORIES = [
-  { id: '1', name: 'Web Servers' },
-  { id: '2', name: 'Database Servers' },
-  { id: '3', name: 'Load Balancers' }
-];
 
 // Data dummy untuk konfigurasi yang sudah ada (untuk mode edit)
-const MOCK_CONFIG_DETAILS = {
-  '1': {
-    name: 'Default Config',
-    description: 'Konfigurasi default untuk server produksi',
-    ansiblePath: '/usr/bin/ansible',
-    playbookPath: '/etc/ansible/playbooks',
-    defaultInventory: '1',
-    extraVars: '{"environment": "production", "debug": false}',
-    customOptions: '--forks=10\n--timeout=30'
-  },
-  '2': {
-    name: 'Staging Config',
-    description: 'Konfigurasi untuk server staging',
-    ansiblePath: '/usr/bin/ansible',
-    playbookPath: '/home/ansible/staging/playbooks',
-    defaultInventory: '2',
-    extraVars: '{"environment": "staging", "debug": true}',
-    customOptions: '--forks=5'
-  }
-};
 
 // Data dummy untuk konfigurasi yang sudah ada (untuk edit mode)
 const EXISTING_CONFIG = {

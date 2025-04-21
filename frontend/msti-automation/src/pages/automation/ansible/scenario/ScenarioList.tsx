@@ -24,11 +24,6 @@ const MOCK_CONFIGS: Record<string, string> = {
 };
 
 // Data dummy untuk inventory
-const MOCK_INVENTORIES: Record<string, string> = {
-  '1': 'Web Servers',
-  '2': 'Database Servers',
-  '3': 'Load Balancers'
-};
 
 // Data dummy untuk skenario
 const MOCK_SCENARIOS: AnsibleScenario[] = [
