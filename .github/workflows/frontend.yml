@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main", "master" ]  # Trigger on push to main or master branches
     paths:
-      - "frontend/msti-automation/**"    # Trigger only if files under frontend/ changed
+      - "frontend/**"    # Trigger only if files under frontend/ changed
 
 jobs:
   build-and-push-frontend:
@@ -25,7 +25,7 @@ jobs:
       - name: Build and push frontend image
         uses: docker/build-push-action@v3
         with:
-          context: ./frontend/msti-automation  # Path to context in frontend/
+          context: ./frontend/  # Path to context in frontend/
           file: ./frontend/msti-automation/Dockerfile   # Path to Dockerfile in frontend/
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/frontend:latest
