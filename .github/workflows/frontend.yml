@@ -2,7 +2,7 @@ name: Frontend Docker Build and Push
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]  # Trigger on push to main or master branches
     paths:
       - "frontend/msti-automation/**"    # Trigger only if files under frontend/ changed
 
