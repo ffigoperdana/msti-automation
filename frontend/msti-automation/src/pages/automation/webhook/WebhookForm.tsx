@@ -270,7 +270,7 @@ app.listen(port, '0.0.0.0', () => {
               Endpoint <span className="text-red-500">*</span>
             </label>
             <div className="flex">
-              <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+              <span className="inline-flex items-center px-3 py-2 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
                 http://your-server:{port}
               </span>
               <input
@@ -279,7 +279,7 @@ app.listen(port, '0.0.0.0', () => {
                 value={endpoint}
                 onChange={(e) => setEndpoint(e.target.value)}
                 required
-                className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md focus:ring-blue-500 focus:border-blue-500 border-gray-300"
+                className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="/webhook"
               />
             </div>

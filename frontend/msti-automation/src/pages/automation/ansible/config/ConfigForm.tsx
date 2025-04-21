@@ -165,10 +165,10 @@ const ConfigForm: React.FC = () => {
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+              className={`w-full px-3 py-2 border ${
                 validationErrors.name 
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
+                  : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               }`}
               placeholder="Masukkan nama konfigurasi"
             />
@@ -187,7 +187,7 @@ const ConfigForm: React.FC = () => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Deskripsi singkat konfigurasi ini"
             />
           </div>
@@ -202,10 +202,10 @@ const ConfigForm: React.FC = () => {
               id="ansiblePath"
               value={ansiblePath}
               onChange={(e) => setAnsiblePath(e.target.value)}
-              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+              className={`w-full px-3 py-2 border ${
                 validationErrors.ansiblePath
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                  : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               }`}
               placeholder="/usr/bin/ansible"
             />
@@ -227,7 +227,7 @@ const ConfigForm: React.FC = () => {
               id="privateKeyPath"
               value={privateKeyPath}
               onChange={(e) => setPrivateKeyPath(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="/home/user/.ssh/id_rsa"
             />
             <p className="mt-1 text-xs text-gray-500">
@@ -245,7 +245,7 @@ const ConfigForm: React.FC = () => {
               id="inventoryPath"
               value={inventoryPath}
               onChange={(e) => setInventoryPath(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="/etc/ansible/inventory"
             />
             <p className="mt-1 text-xs text-gray-500">
@@ -264,7 +264,7 @@ const ConfigForm: React.FC = () => {
               value={timeout}
               onChange={(e) => setTimeoutValue(parseInt(e.target.value) || 0)}
               min={0}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             <p className="mt-1 text-xs text-gray-500">
               Batas waktu dalam detik sebelum operasi Ansible dihentikan secara paksa.
@@ -280,7 +280,7 @@ const ConfigForm: React.FC = () => {
               id="status"
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="active">Aktif</option>
               <option value="inactive">Tidak Aktif</option>
@@ -312,13 +312,13 @@ const ConfigForm: React.FC = () => {
                 <label htmlFor="extraOptions" className="block text-sm font-medium text-gray-700">
                   Opsi Tambahan
                 </label>
-                <input
-                  type="text"
+                <textarea
                   id="extraOptions"
                   value={extraOptions}
                   onChange={(e) => setExtraOptions(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="--ssh-common-args='-o StrictHostKeyChecking=no'"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+                  placeholder="--ssh-common-args=&quot;-o StrictHostKeyChecking=no&quot;"
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   Opsi tambahan command line yang akan diteruskan ke Ansible.
@@ -335,12 +335,15 @@ const ConfigForm: React.FC = () => {
                   value={environment}
                   onChange={(e) => setEnvironment(e.target.value)}
                   rows={5}
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm font-mono ${
-                    validationErrors.environment
-                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                      : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                  }`}
-                  placeholder='{\n  "ANSIBLE_HOST_KEY_CHECKING": "False",\n  "ANSIBLE_STDOUT_CALLBACK": "yaml"\n}'
+                  className={`w-full px-3 py-2 border ${
+                    validationErrors.environment 
+                      ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
+                      : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                  } font-mono text-sm`}
+                  placeholder='{
+  "ANSIBLE_HOST_KEY_CHECKING": "False",
+  "ANSIBLE_STDOUT_CALLBACK": "yaml"
+}'
                 />
                 {validationErrors.environment && (
                   <p className="mt-1 text-sm text-red-600">{validationErrors.environment}</p>

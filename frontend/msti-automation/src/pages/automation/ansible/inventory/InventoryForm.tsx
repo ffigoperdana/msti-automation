@@ -314,9 +314,9 @@ const InventoryForm: React.FC = () => {
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className={`mt-1 block w-full px-3 py-2 border ${
+                className={`w-full px-3 py-2 border ${
                   validationErrors.name ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
                 placeholder="Contoh: Production Servers"
               />
               {validationErrors.name && (
@@ -333,7 +333,7 @@ const InventoryForm: React.FC = () => {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={3}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Deskripsi singkat tentang inventory ini"
               />
             </div>
@@ -348,9 +348,9 @@ const InventoryForm: React.FC = () => {
                   id="path"
                   value={path}
                   onChange={(e) => setPath(e.target.value)}
-                  className={`mt-1 block w-full px-3 py-2 border ${
+                  className={`w-full px-3 py-2 border ${
                     validationErrors.path ? 'border-red-500' : 'border-gray-300'
-                  } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                  } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
                   placeholder="/etc/ansible/inventory/production"
                 />
                 {validationErrors.path && (
@@ -366,9 +366,9 @@ const InventoryForm: React.FC = () => {
                   id="type"
                   value={type}
                   onChange={(e) => setType(e.target.value as 'file' | 'directory' | 'dynamic')}
-                  className={`mt-1 block w-full px-3 py-2 border ${
+                  className={`w-full px-3 py-2 border ${
                     validationErrors.type ? 'border-red-500' : 'border-gray-300'
-                  } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                  } rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
                 >
                   <option value="file">File</option>
                   <option value="directory">Directory</option>
@@ -399,9 +399,9 @@ const InventoryForm: React.FC = () => {
                     setGroups(parseInventoryGroups(newContent));
                   }}
                   rows={12}
-                  className={`mt-1 block w-full px-3 py-2 border ${
+                  className={`w-full px-3 py-2 border ${
                     validationErrors.content ? 'border-red-500' : 'border-gray-300'
-                  } rounded-md shadow-sm font-mono text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                  } rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
                   placeholder="[webservers]\nweb1.example.com\nweb2.example.com"
                 />
                 {validationErrors.content && (
@@ -428,9 +428,9 @@ const InventoryForm: React.FC = () => {
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   rows={12}
-                  className={`mt-1 block w-full px-3 py-2 border ${
+                  className={`w-full px-3 py-2 border ${
                     validationErrors.content ? 'border-red-500' : 'border-gray-300'
-                  } rounded-md shadow-sm font-mono text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
+                  } rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
                   placeholder="#!/usr/bin/env python\n# Dynamic inventory script"
                 />
                 {validationErrors.content && (

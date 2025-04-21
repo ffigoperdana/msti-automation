@@ -203,10 +203,10 @@ const ScenarioForm: React.FC = () => {
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+              className={`w-full px-3 py-2 border ${
                 validationErrors.name 
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
+                  : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               }`}
               placeholder="Masukkan nama skenario"
             />
@@ -225,7 +225,7 @@ const ScenarioForm: React.FC = () => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Deskripsi singkat tentang skenario ini"
             />
           </div>
@@ -239,10 +239,10 @@ const ScenarioForm: React.FC = () => {
               id="configId"
               value={configId}
               onChange={(e) => setConfigId(e.target.value)}
-              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+              className={`w-full px-3 py-2 border ${
                 validationErrors.configId
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                  : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               }`}
             >
               <option value="">Pilih Konfigurasi</option>
@@ -265,10 +265,10 @@ const ScenarioForm: React.FC = () => {
               id="playbookFile"
               value={playbookFile}
               onChange={(e) => setPlaybookFile(e.target.value)}
-              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+              className={`w-full px-3 py-2 border ${
                 validationErrors.playbookFile
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                  : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               }`}
               placeholder="Contoh: deploy.yml"
             />
@@ -286,7 +286,7 @@ const ScenarioForm: React.FC = () => {
               id="inventoryId"
               value={inventoryId}
               onChange={(e) => setInventoryId(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Gunakan Default dari Konfigurasi</option>
               {MOCK_INVENTORIES.map(inventory => (
@@ -310,7 +310,7 @@ const ScenarioForm: React.FC = () => {
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyPress={handleTagKeyPress}
-                className="flex-1 min-w-0 block w-full rounded-none rounded-l-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Tambahkan tag"
               />
               <button
@@ -354,7 +354,7 @@ const ScenarioForm: React.FC = () => {
               id="status"
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="draft">Draft</option>
               <option value="active">Aktif</option>
@@ -392,11 +392,11 @@ const ScenarioForm: React.FC = () => {
                   value={extraVars}
                   onChange={(e) => setExtraVars(e.target.value)}
                   rows={5}
-                  className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm font-mono ${
+                  className={`w-full px-3 py-2 border ${
                     validationErrors.extraVars
-                      ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                      : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-                  }`}
+                      ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                      : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                  } font-mono`}
                   placeholder='{ "domain": "example.com", "port": 80 }'
                 />
                 {validationErrors.extraVars && (
@@ -417,7 +417,7 @@ const ScenarioForm: React.FC = () => {
                   id="skipTags"
                   value={skipTags}
                   onChange={(e) => setSkipTags(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Contoh: notification,debug"
                 />
                 <p className="mt-1 text-xs text-gray-500">
@@ -434,7 +434,7 @@ const ScenarioForm: React.FC = () => {
                   id="verbosity"
                   value={verbosity}
                   onChange={(e) => setVerbosity(parseInt(e.target.value))}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="0">0 (Default)</option>
                   <option value="1">1 (Verbose)</option>

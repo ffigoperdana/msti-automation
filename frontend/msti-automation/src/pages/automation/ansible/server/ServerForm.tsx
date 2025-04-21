@@ -311,10 +311,10 @@ fi
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+              className={`w-full px-3 py-2 border ${
                 validationErrors.name 
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
+                  : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               }`}
               placeholder="Masukkan nama script"
             />
@@ -333,7 +333,7 @@ fi
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Deskripsi singkat tentang script ini"
             />
           </div>
@@ -353,7 +353,7 @@ fi
                 }
                 generateDefaultScript();
               }}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="playbook">Playbook</option>
               <option value="adhoc">Ad-hoc Command</option>
@@ -380,10 +380,10 @@ fi
                 setTargetConfigId(e.target.value);
                 generateDefaultScript();
               }}
-              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+              className={`w-full px-3 py-2 border ${
                 validationErrors.targetConfigId
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                  : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
               }`}
             >
               <option value="">Pilih Konfigurasi</option>
@@ -405,7 +405,7 @@ fi
               id="targetInventoryId"
               value={targetInventoryId}
               onChange={(e) => setTargetInventoryId(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Gunakan Default dari Konfigurasi</option>
               {MOCK_INVENTORIES.map(inventory => (
@@ -430,10 +430,10 @@ fi
                   setTargetScenarioId(e.target.value);
                   generateDefaultScript();
                 }}
-                className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm ${
+                className={`w-full px-3 py-2 border ${
                   validationErrors.targetScenarioId
-                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                    : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
+                    ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                    : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
                 }`}
               >
                 <option value="">Pilih Skenario</option>
@@ -456,7 +456,7 @@ fi
               id="status"
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="active">Aktif</option>
               <option value="inactive">Tidak Aktif</option>
@@ -503,7 +503,7 @@ fi
                 id="webhookKey"
                 value={webhookKey}
                 onChange={(e) => setWebhookKey(e.target.value)}
-                className="flex-1 min-w-0 block w-full rounded-none rounded-l-md border-gray-300 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="webhook-secret-key"
               />
               <button
@@ -531,7 +531,7 @@ fi
                   id="webhookUrl"
                   value={webhookUrl}
                   readOnly
-                  className="flex-1 min-w-0 block w-full rounded-md border-gray-300 bg-gray-50 sm:text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <button
                   type="button"
@@ -573,11 +573,11 @@ fi
               value={scriptContent}
               onChange={(e) => setScriptContent(e.target.value)}
               rows={15}
-              className={`mt-1 block w-full rounded-md shadow-sm sm:text-sm font-mono ${
+              className={`w-full px-3 py-2 border ${
                 validationErrors.scriptContent
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:ring-blue-500 focus:border-blue-500'
-              }`}
+                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                  : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+              } font-mono text-sm`}
               placeholder="#!/bin/bash\n\n# Your script content here..."
             />
             {validationErrors.scriptContent && (
