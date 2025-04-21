@@ -26,6 +26,6 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./frontend
-          file: ./frontend/Dockerfile   # Path to Dockerfile in frontend/
+          file: ./frontend/msti-automation/Dockerfile   # Path to Dockerfile in frontend/
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/frontend:latest
