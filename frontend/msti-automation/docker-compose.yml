@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: msti-frontend
     ports:
-      - "80:80"
+      - "6969:80"
     restart: unless-stopped
     # Untuk development, Anda bisa menggunakan volume untuk hot reload
     # volumes:
