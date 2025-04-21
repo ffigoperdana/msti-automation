@@ -29,6 +29,45 @@ router.post('/query', async (req, res) => {
   }
 });
 
+// Get all dashboards
+router.get('/dashboards', async (req, res) => {
+  try {
+    const dashboards = await prisma.visualization.findMany({
+      where: { type: 'dashboard', dashboardId: null }
+    });
+    res.json(dashboards);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch dashboards" });
+  }
+});
+
+// Get all panels for a dashboard
+router.get('/dashboards/:id/panels', async (req, res) => {
+  try {
+    const panels = await prisma.visualization.findMany({
+      where: { dashboardId: req.params.id }
+    });
+    res.json(panels);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch panels" });
+  }
+});
+
+// Create a new panel in a dashboard
+router.post('/dashboards/:id/panels', async (req, res) => {
+  try {
+    const panel = await prisma.visualization.create({
+      data: {
+        ...req.body,
+        dashboardId: req.params.id
+      }
+    });
+    res.json(panel);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create panel" });
+  }
+});
+
 // Buat visualisasi baru
 router.post('/', async (req, res) => {
   try {

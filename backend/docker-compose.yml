@@ -1,0 +1,22 @@
+services:
+  backend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: msti-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./src:/app/src
+      - ./prisma:/app/prisma
+      - ./node_modules:/app/node_modules
+      - ./entrypoint.sh:/app/entrypoint.sh
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${DATABASE_URL}
+    # Tambahkan batasan sumber daya
+    deploy:
+      resources:
+        limits:
+          memory: 1G

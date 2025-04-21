@@ -844,6 +844,536 @@
           }
         }
       }
+    },
+    "/api/data-sources/buckets": {
+      "post": {
+        "summary": "Get available buckets from InfluxDB",
+        "tags": ["Data Source"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "description": "URL of the InfluxDB server"
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "Token for authentication"
+                  },
+                  "database": {
+                    "type": "string",
+                    "description": "Database/org name"
+                  }
+                },
+                "required": ["url", "token", "database"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Available buckets retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "buckets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/data-sources/measurements": {
+      "post": {
+        "summary": "Get available measurements for a bucket",
+        "tags": ["Data Source"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "description": "URL of the InfluxDB server"
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "Token for authentication"
+                  },
+                  "database": {
+                    "type": "string",
+                    "description": "Database/org name"
+                  },
+                  "bucket": {
+                    "type": "string",
+                    "description": "Bucket name"
+                  }
+                },
+                "required": ["url", "token", "database", "bucket"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Available measurements retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "success"
+                    },
+                    "measurements": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/variables": {
+      "post": {
+        "summary": "Create a new variable",
+        "tags": ["Variables"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Variable name"
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "Display label"
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "Variable type (query, custom, interval, etc.)"
+                  },
+                  "query": {
+                    "type": "string",
+                    "description": "Query for query type variables"
+                  },
+                  "options": {
+                    "type": "object",
+                    "description": "Possible values"
+                  },
+                  "current": {
+                    "type": "string",
+                    "description": "Current selected value"
+                  },
+                  "dataSourceId": {
+                    "type": "string",
+                    "description": "ID of the data source (if applicable)"
+                  },
+                  "userId": {
+                    "type": "string",
+                    "description": "ID of the user who owns this variable"
+                  }
+                },
+                "required": ["name", "type", "userId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Variable created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Variable"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/variables/user/{userId}": {
+      "get": {
+        "summary": "Get variables by user ID",
+        "tags": ["Variables"],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of variables for the specified user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Variable"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/variables/{id}": {
+      "put": {
+        "summary": "Update variable by ID",
+        "tags": ["Variables"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "query": {
+                    "type": "string"
+                  },
+                  "options": {
+                    "type": "object"
+                  },
+                  "current": {
+                    "type": "string"
+                  },
+                  "dataSourceId": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Variable updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Variable"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Variable not found"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete variable by ID",
+        "tags": ["Variables"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Variable deleted successfully"
+          },
+          "404": {
+            "description": "Variable not found"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/variables/query-options": {
+      "post": {
+        "summary": "Get options for a query variable",
+        "tags": ["Variables"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "Query string"
+                  },
+                  "dataSourceId": {
+                    "type": "string",
+                    "description": "ID of the data source"
+                  }
+                },
+                "required": ["query", "dataSourceId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Query options retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "options": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/variables/execute-query": {
+      "post": {
+        "summary": "Execute a query with variable substitution",
+        "tags": ["Variables"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "Query with variables"
+                  },
+                  "variables": {
+                    "type": "object",
+                    "description": "Variable values for substitution"
+                  },
+                  "dataSourceId": {
+                    "type": "string",
+                    "description": "ID of the data source"
+                  }
+                },
+                "required": ["query", "dataSourceId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Query executed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/automation/webhook": {
+      "post": {
+        "summary": "Receive webhook from external system",
+        "tags": ["Automation"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook received successfully"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/automation/rules": {
+      "post": {
+        "summary": "Create a new automation rule",
+        "tags": ["Automation"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Rule name"
+                  },
+                  "condition": {
+                    "type": "object",
+                    "description": "Condition definition"
+                  },
+                  "actions": {
+                    "type": "array",
+                    "description": "Actions to perform",
+                    "items": {
+                      "type": "object"
+                    }
+                  }
+                },
+                "required": ["name", "condition", "actions"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Rule created successfully"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      },
+      "get": {
+        "summary": "Get all automation rules",
+        "tags": ["Automation"],
+        "responses": {
+          "200": {
+            "description": "List of automation rules",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
+    },
+    "/api/automation/rules/{id}": {
+      "get": {
+        "summary": "Get automation rule by ID",
+        "tags": ["Automation"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Automation rule found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Rule not found"
+          },
+          "500": {
+            "description": "Server error"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -982,6 +1512,46 @@
           },
           "role": {
             "type": "string"
+          }
+        }
+      },
+      "Variable": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "options": {
+            "type": "object"
+          },
+          "current": {
+            "type": "string"
+          },
+          "dataSourceId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

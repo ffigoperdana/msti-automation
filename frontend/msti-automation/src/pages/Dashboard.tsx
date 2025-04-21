@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -25,8 +26,40 @@ ChartJS.register(
   Legend
 );
 
+// Data dummy untuk dashboard
+const DUMMY_DASHBOARDS: Record<string, { name: string; description: string }> = {
+  '1': { 
+    name: 'Production Overview',
+    description: 'Overview of production server metrics'
+  },
+  '2': {
+    name: 'Development Environment',
+    description: 'Metrics for development environment' 
+  },
+  '3': {
+    name: 'Database Performance',
+    description: 'Database server performance metrics'
+  }
+};
+
 const Dashboard: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
   const { selectedSource } = useSource();
+  const [dashboardData, setDashboardData] = useState<{ name: string; description: string } | null>(null);
+  
+  // Load dashboard data based on ID
+  useEffect(() => {
+    // In a real app, this would be an API call
+    if (id && DUMMY_DASHBOARDS[id]) {
+      setDashboardData(DUMMY_DASHBOARDS[id]);
+    } else {
+      // Jika dashboard tidak ditemukan, gunakan default
+      setDashboardData({
+        name: 'Default Dashboard',
+        description: 'Default dashboard view'
+      });
+    }
+  }, [id]);
 
   const lineChartData = {
     labels: ['January', 'February', 'March', 'April', 'May', 'June'],
@@ -115,12 +148,17 @@ const Dashboard: React.FC = () => {
     },
   };
 
+  if (!dashboardData) {
+    return <div className="p-4">Loading dashboard...</div>;
+  }
+
   return (
     <div className="space-y-4">
       {/* Dashboard Header */}
       <div className="bg-white p-4 rounded-lg shadow-sm">
         {/* Network Statistics */}
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Network Statistics</h2>
+        <h2 className="text-xl font-semibold text-gray-800 mb-1">{dashboardData.name}</h2>
+        <p className="text-gray-600 mb-4">{dashboardData.description}</p>
         {/* Controls Container - Horizontal layout */}
         <div className="flex flex-wrap justify-between items-center gap-4">
           {/* Source Selector */}
@@ -129,9 +167,15 @@ const Dashboard: React.FC = () => {
           </div>
           {/* Buttons Container */}
           <div className="flex items-center gap-2">
-            <button className="px-4 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+            <Link
+              to={`/dashboard/${id}/panel/new`}
+              className="px-4 py-1.5 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center"
+            >
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
               Add Panel
-            </button>
+            </Link>
             <button className="px-4 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50 transition-colors">
               Time Range
             </button>
@@ -145,11 +189,22 @@ const Dashboard: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm p-4">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium text-gray-800">Server Response Time</h3>
-            <button className="p-1 hover:bg-gray-100 rounded transition-colors">
-              <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-              </svg>
-            </button>
+            <div className="flex items-center">
+              <Link
+                to={`/dashboard/${id}/panel/edit/1`}
+                className="p-1 hover:bg-gray-100 rounded transition-colors mr-1"
+                title="Edit Panel"
+              >
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </Link>
+              <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                </svg>
+              </button>
+            </div>
           </div>
           <div className="h-[250px] lg:h-[300px]">
             <Line data={lineChartData} options={lineChartOptions} />
@@ -160,11 +215,22 @@ const Dashboard: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm p-4">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium text-gray-800">Resource Usage</h3>
-            <button className="p-1 hover:bg-gray-100 rounded transition-colors">
-              <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-              </svg>
-            </button>
+            <div className="flex items-center">
+              <Link
+                to={`/dashboard/${id}/panel/edit/2`}
+                className="p-1 hover:bg-gray-100 rounded transition-colors mr-1"
+                title="Edit Panel"
+              >
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </Link>
+              <button className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <svg className="w-5 h-5 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                </svg>
+              </button>
+            </div>
           </div>
           <div className="h-[250px] lg:h-[300px]">
             <Bar data={barChartData} options={barChartOptions} />

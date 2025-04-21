@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 interface SidebarProps {
@@ -6,13 +6,51 @@ interface SidebarProps {
   onClose: () => void;
 }
 
+interface MenuItem {
+  title: string;
+  path?: string;
+  icon: string;
+  children?: { title: string; path: string }[];
+}
+
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const menuItems = [
-    { title: 'Dashboard', path: '/', icon: '📊' },
-    { title: 'Alerts', path: '/alerts', icon: '🔔' },
-    { title: 'Automations', path: '/automations', icon: '⚙️' },
-    { title: 'Settings', path: '/settings', icon: '⚡' },
+  // State untuk mengontrol dropdown mana yang terbuka
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+
+  const menuItems: MenuItem[] = [
+    { 
+      title: 'Dashboard', 
+      icon: '📊',
+      children: [
+        { title: 'Dashboard Explorer', path: '/dashboard' },
+        { title: 'New Dashboard', path: '/dashboard/new' }
+      ]
+    },
+    { 
+      title: 'Alerting', 
+      icon: '🔔',
+      children: [
+        { title: 'Alert Rules', path: '/alerting/rules' },
+        { title: 'Contact Points', path: '/alerting/contacts' }
+      ]
+    },
+    { 
+      title: 'Connections', 
+      icon: '🔌',
+      children: [
+        { title: 'Add New Connection', path: '/connections/new' },
+        { title: 'Data Sources', path: '/connections/data-sources' }
+      ]
+    },
+    { title: 'Settings', path: '/settings', icon: '⚙️' },
   ];
+
+  const toggleMenu = (title: string) => {
+    setOpenMenus(prev => ({
+      ...prev,
+      [title]: !prev[title]
+    }));
+  };
 
   return (
     <>
@@ -31,8 +69,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         } md:translate-x-0 transition-transform duration-200 ease-in-out z-30`}
       >
         <div className="flex flex-col h-full">
-          <div className="flex items-center justify-between p-4">
-            <span className="text-xl font-bold">MSI Automation</span>
+          <div className="flex items-center justify-center p-4">
+            <span className="text-xl items-center font-bold">MSTI</span>
             <button
               onClick={onClose}
               className="p-2 rounded-md hover:bg-gray-700 md:hidden"
@@ -53,17 +91,63 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </button>
           </div>
 
-          <nav className="flex-1 px-2 py-4 space-y-1">
+          <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
             {menuItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={onClose}
-                className="flex items-center px-4 py-2.5 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
-              >
-                <span className="mr-3">{item.icon}</span>
-                <span>{item.title}</span>
-              </Link>
+              <div key={item.title} className="mb-1">
+                {item.children ? (
+                  // Menu dengan dropdown
+                  <div>
+                    <button
+                      onClick={() => toggleMenu(item.title)}
+                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
+                    >
+                      <div className="flex items-center">
+                        <span className="mr-3">{item.icon}</span>
+                        <span>{item.title}</span>
+                      </div>
+                      <svg
+                        className={`w-4 h-4 transition-transform ${openMenus[item.title] ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
+                    
+                    {/* Dropdown children */}
+                    {openMenus[item.title] && (
+                      <div className="mt-1 ml-6 space-y-1">
+                        {item.children.map((child) => (
+                          <Link
+                            key={child.path}
+                            to={child.path}
+                            onClick={onClose}
+                            className="block px-4 py-2 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
+                          >
+                            {child.title}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // Menu tanpa dropdown
+                  <Link
+                    to={item.path || '/'}
+                    onClick={onClose}
+                    className="flex items-center px-4 py-2.5 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
+                  >
+                    <span className="mr-3">{item.icon}</span>
+                    <span>{item.title}</span>
+                  </Link>
+                )}
+              </div>
             ))}
           </nav>
         </div>

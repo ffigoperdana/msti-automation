@@ -75,15 +75,19 @@ model AnsiblePlaybook {
 }
 
 model Visualization {
-  id          String   @id @default(uuid())
-  name        String
-  type        String
-  config      Json?
-  queryConfig Json?
-  dataSourceId String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  dataSource  DataSource? @relation(fields: [dataSourceId], references: [id])
+  id            String   @id @default(uuid())
+  name          String
+  type          String   // "dashboard", "graph", "gauge", "table", etc.
+  config        Json?
+  queryConfig   Json?
+  dataSourceId  String?
+  dashboardId   String?  // Reference to parent dashboard (null if this is a dashboard)
+  position      Json?    // Position in dashboard (x, y, w, h)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  dataSource    DataSource? @relation(fields: [dataSourceId], references: [id])
+  dashboard     Visualization? @relation("PanelToDashboard", fields: [dashboardId], references: [id])
+  panels        Visualization[] @relation("PanelToDashboard")
 }
 
 model Variable {

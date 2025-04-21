@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: msti-frontend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    # Untuk development, Anda bisa menggunakan volume untuk hot reload
+    # volumes:
+    #   - ./:/app
+    #   - /app/node_modules
+    # command: npm run dev
+
+  # Jika memiliki backend atau layanan lain, tambahkan di sini
+  # contoh:
+  # backend:
+  #   image: nama-image-backend
+  #   container_name: msti-backend
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - NODE_ENV=production
+  #   restart: unless-stopped 
