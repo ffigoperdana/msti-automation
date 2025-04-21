@@ -25,7 +25,7 @@ jobs:
       - name: Build and push frontend image
         uses: docker/build-push-action@v3
         with:
-          context: ./frontend/  # Path to context in frontend/
+          context: ./frontend/msti-automation  # Context for Docker build
           file: ./frontend/msti-automation/Dockerfile   # Path to Dockerfile in frontend/
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/frontend:latest
