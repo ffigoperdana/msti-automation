@@ -2,39 +2,32 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 // Data dummy untuk konfigurasi
-const MOCK_CONFIGS = [
-  { id: '1', name: 'Default Config' },
-  { id: '2', name: 'Staging Config' },
-  { id: '3', name: 'Production Config' }
-];
 
 // Data dummy untuk inventory
-const MOCK_INVENTORIES = [
-  { id: '1', name: 'Web Servers' },
-  { id: '2', name: 'Database Servers' },
-  { id: '3', name: 'Load Balancers' }
-];
 
 // Data dummy untuk skenario yang sudah ada (untuk edit mode)
 const EXISTING_SCENARIO = {
   id: '1',
   name: 'Deploy Web Application',
   description: 'Menerapkan aplikasi web ke server produksi',
-  configId: '3',
-  playbookFile: 'deploy_web.yml',
-  inventoryId: '1',
   tags: ['deploy', 'web', 'production'],
   status: 'active',
-  extraVars: JSON.stringify({ domain: 'example.com', port: 80 }, null, 2),
-  skipTags: 'notification,debug',
-  verbosity: 2
+  playbookContent: `- name: Create interface to the router
+  hosts: routers
+  gather_facts: no
+  tasks:
+    - name: Run "create interface"
+      ios_command:
+        commands:
+          - configure terminal
+          - interface eth1/7
+          - no shut
+          - exit`
 };
 
 interface ValidationErrors {
   name?: string;
-  configId?: string;
-  playbookFile?: string;
-  extraVars?: string;
+  playbookContent?: string;
 }
 
 const ScenarioForm: React.FC = () => {
@@ -45,20 +38,14 @@ const ScenarioForm: React.FC = () => {
   // State untuk form fields
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [configId, setConfigId] = useState('');
-  const [playbookFile, setPlaybookFile] = useState('');
-  const [inventoryId, setInventoryId] = useState('');
+  const [playbookContent, setPlaybookContent] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [status, setStatus] = useState('draft');
-  const [extraVars, setExtraVars] = useState('');
-  const [skipTags, setSkipTags] = useState('');
-  const [verbosity, setVerbosity] = useState(0);
   
   // State untuk validasi
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Load data saat edit mode
   useEffect(() => {
@@ -71,14 +58,9 @@ const ScenarioForm: React.FC = () => {
         
         setName(EXISTING_SCENARIO.name);
         setDescription(EXISTING_SCENARIO.description);
-        setConfigId(EXISTING_SCENARIO.configId);
-        setPlaybookFile(EXISTING_SCENARIO.playbookFile);
-        setInventoryId(EXISTING_SCENARIO.inventoryId || '');
         setTags(EXISTING_SCENARIO.tags || []);
         setStatus(EXISTING_SCENARIO.status);
-        setExtraVars(EXISTING_SCENARIO.extraVars || '');
-        setSkipTags(EXISTING_SCENARIO.skipTags || '');
-        setVerbosity(EXISTING_SCENARIO.verbosity || 0);
+        setPlaybookContent(EXISTING_SCENARIO.playbookContent);
       };
       
       loadScenario();
@@ -114,20 +96,8 @@ const ScenarioForm: React.FC = () => {
       errors.name = 'Nama skenario harus diisi';
     }
     
-    if (!configId) {
-      errors.configId = 'Konfigurasi harus dipilih';
-    }
-    
-    if (!playbookFile.trim()) {
-      errors.playbookFile = 'File playbook harus diisi';
-    }
-    
-    if (extraVars.trim()) {
-      try {
-        JSON.parse(extraVars);
-      } catch (e) {
-        errors.extraVars = 'Format JSON tidak valid';
-      }
+    if (!playbookContent.trim()) {
+      errors.playbookContent = 'Konten playbook harus diisi';
     }
     
     setValidationErrors(errors);
@@ -153,14 +123,9 @@ const ScenarioForm: React.FC = () => {
         id: isEditMode ? id : undefined,
         name,
         description,
-        configId,
-        playbookFile,
-        inventoryId: inventoryId || undefined,
         tags,
         status,
-        extraVars: extraVars.trim() ? JSON.parse(extraVars) : undefined,
-        skipTags: skipTags || undefined,
-        verbosity: verbosity || undefined
+        playbookContent
       });
       
       // Redirect ke halaman list setelah berhasil
@@ -182,16 +147,15 @@ const ScenarioForm: React.FC = () => {
         </h1>
         <p className="text-gray-600 mt-1">
           {isEditMode 
-            ? 'Ubah pengaturan skenario otomatisasi Ansible' 
+            ? 'Ubah skenario otomatisasi Ansible' 
             : 'Buat skenario baru untuk otomatisasi menggunakan Ansible'}
         </p>
       </div>
       
       {/* Form */}
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-sm space-y-6">
-        {/* Pengaturan Dasar */}
         <div className="space-y-4">
-          <h2 className="text-lg font-medium text-gray-800 border-b pb-2">Pengaturan Dasar</h2>
+          <h2 className="text-lg font-medium text-gray-800 border-b pb-2">Skenario Ansible</h2>
           
           {/* Nama */}
           <div>
@@ -228,74 +192,6 @@ const ScenarioForm: React.FC = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Deskripsi singkat tentang skenario ini"
             />
-          </div>
-          
-          {/* Konfigurasi */}
-          <div>
-            <label htmlFor="configId" className="block text-sm font-medium text-gray-700">
-              Konfigurasi Ansible <span className="text-red-500">*</span>
-            </label>
-            <select
-              id="configId"
-              value={configId}
-              onChange={(e) => setConfigId(e.target.value)}
-              className={`w-full px-3 py-2 border ${
-                validationErrors.configId
-                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
-              }`}
-            >
-              <option value="">Pilih Konfigurasi</option>
-              {MOCK_CONFIGS.map(config => (
-                <option key={config.id} value={config.id}>{config.name}</option>
-              ))}
-            </select>
-            {validationErrors.configId && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.configId}</p>
-            )}
-          </div>
-          
-          {/* Playbook File */}
-          <div>
-            <label htmlFor="playbookFile" className="block text-sm font-medium text-gray-700">
-              File Playbook <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              id="playbookFile"
-              value={playbookFile}
-              onChange={(e) => setPlaybookFile(e.target.value)}
-              className={`w-full px-3 py-2 border ${
-                validationErrors.playbookFile
-                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                  : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
-              }`}
-              placeholder="Contoh: deploy.yml"
-            />
-            {validationErrors.playbookFile && (
-              <p className="mt-1 text-sm text-red-600">{validationErrors.playbookFile}</p>
-            )}
-          </div>
-          
-          {/* Inventory */}
-          <div>
-            <label htmlFor="inventoryId" className="block text-sm font-medium text-gray-700">
-              Inventory
-            </label>
-            <select
-              id="inventoryId"
-              value={inventoryId}
-              onChange={(e) => setInventoryId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Gunakan Default dari Konfigurasi</option>
-              {MOCK_INVENTORIES.map(inventory => (
-                <option key={inventory.id} value={inventory.id}>{inventory.name}</option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-gray-500">
-              Opsional. Jika tidak dipilih, akan menggunakan inventory default dari konfigurasi.
-            </p>
           </div>
           
           {/* Tag */}
@@ -361,93 +257,41 @@ const ScenarioForm: React.FC = () => {
               <option value="inactive">Tidak Aktif</option>
             </select>
           </div>
-        </div>
-        
-        {/* Pengaturan Lanjutan (collapsible) */}
-        <div className="space-y-4">
-          <button
-            type="button"
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 focus:outline-none"
-          >
-            <svg 
-              className={`mr-2 h-4 w-4 transition-transform ${showAdvanced ? 'transform rotate-90' : ''}`} 
-              fill="currentColor" 
-              viewBox="0 0 20 20"
-            >
-              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-            </svg>
-            Pengaturan Lanjutan
-          </button>
           
-          {showAdvanced && (
-            <div className="space-y-4 pt-4 border-t">
-              {/* Extra Vars */}
-              <div>
-                <label htmlFor="extraVars" className="block text-sm font-medium text-gray-700">
-                  Extra Variables (JSON)
-                </label>
-                <textarea
-                  id="extraVars"
-                  value={extraVars}
-                  onChange={(e) => setExtraVars(e.target.value)}
-                  rows={5}
-                  className={`w-full px-3 py-2 border ${
-                    validationErrors.extraVars
-                      ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                      : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
-                  } font-mono`}
-                  placeholder='{ "domain": "example.com", "port": 80 }'
-                />
-                {validationErrors.extraVars && (
-                  <p className="mt-1 text-sm text-red-600">{validationErrors.extraVars}</p>
-                )}
-                <p className="mt-1 text-xs text-gray-500">
-                  Variabel tambahan dalam format JSON yang akan diteruskan ke playbook.
-                </p>
-              </div>
-              
-              {/* Skip Tags */}
-              <div>
-                <label htmlFor="skipTags" className="block text-sm font-medium text-gray-700">
-                  Skip Tags
-                </label>
-                <input
-                  type="text"
-                  id="skipTags"
-                  value={skipTags}
-                  onChange={(e) => setSkipTags(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Contoh: notification,debug"
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Daftar tag yang akan dilewati saat menjalankan playbook (dipisahkan dengan koma).
-                </p>
-              </div>
-              
-              {/* Verbosity */}
-              <div>
-                <label htmlFor="verbosity" className="block text-sm font-medium text-gray-700">
-                  Verbosity Level
-                </label>
-                <select
-                  id="verbosity"
-                  value={verbosity}
-                  onChange={(e) => setVerbosity(parseInt(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="0">0 (Default)</option>
-                  <option value="1">1 (Verbose)</option>
-                  <option value="2">2 (More Verbose)</option>
-                  <option value="3">3 (Debug)</option>
-                  <option value="4">4 (Connection Debug)</option>
-                </select>
-                <p className="mt-1 text-xs text-gray-500">
-                  Level detail output yang akan ditampilkan saat menjalankan playbook.
-                </p>
-              </div>
-            </div>
-          )}
+          {/* Playbook Content */}
+          <div>
+            <label htmlFor="playbookContent" className="block text-sm font-medium text-gray-700">
+              Konten Playbook <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="playbookContent"
+              value={playbookContent}
+              onChange={(e) => setPlaybookContent(e.target.value)}
+              rows={15}
+              className={`w-full px-3 py-2 border ${
+                validationErrors.playbookContent
+                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                  : 'border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+              } font-mono`}
+              placeholder={`- name: Create interface to the router
+  hosts: routers
+  gather_facts: no
+  tasks:
+    - name: Run "create interface"
+      ios_command:
+        commands:
+          - configure terminal
+          - interface eth1/7
+          - no shut
+          - exit`}
+            />
+            {validationErrors.playbookContent && (
+              <p className="mt-1 text-sm text-red-600">{validationErrors.playbookContent}</p>
+            )}
+            <p className="mt-1 text-xs text-gray-500">
+              Masukkan konten playbook dalam format YAML.
+            </p>
+          </div>
         </div>
         
         {/* Tombol Aksi */}

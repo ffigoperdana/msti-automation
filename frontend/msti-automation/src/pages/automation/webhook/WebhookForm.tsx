@@ -84,7 +84,7 @@ app.listen(port, '0.0.0.0', () => {
 
 // Data dummy untuk ansible script yang tersedia
 const MOCK_ANSIBLE_SCRIPTS = [
-  { id: '1', name: 'Server Restart', path: '/home/cisco/run_ansible.sh' },
+  { id: '1', name: 'interface failover', path: '/home/cisco/interface_failover.sh' },
   { id: '2', name: 'Backup Process', path: '/home/cisco/backup.sh' },
   { id: '3', name: 'Cleanup Script', path: '/home/cisco/cleanup.sh' }
 ];

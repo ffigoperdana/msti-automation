@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSource } from '../../context/SourceContext';
 
@@ -9,7 +9,32 @@ const PANEL_TYPES = [
   { id: 'gauge', name: 'Gauge', icon: '⏲️' },
   { id: 'stat', name: 'Stat', icon: '📌' },
   { id: 'table', name: 'Table', icon: '🔢' },
+  { id: 'interface-status', name: 'Interface Status', icon: '🔌' },
 ];
+
+// Data interface untuk pemilihan
+const INTERFACE_OPTIONS = [
+  { id: 'gi0/1', name: 'GigabitEthernet0/1', device: 'Router-1' },
+  { id: 'gi0/2', name: 'GigabitEthernet0/2', device: 'Router-1' },
+  { id: 'gi0/3', name: 'GigabitEthernet0/3', device: 'Router-1' },
+  { id: 'gi0/1-sw', name: 'GigabitEthernet0/1', device: 'Switch-1' },
+  { id: 'gi0/2-sw', name: 'GigabitEthernet0/2', device: 'Switch-1' },
+];
+
+// Komponen untuk Panel Interface
+const InterfaceStatusPanel: React.FC<{ 
+  interface: { id: number; name: string; status: string; location: string }
+}> = ({ interface: iface }) => {
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-4 border-t-4 border-gray-200">
+      <div className="font-semibold text-gray-700 text-lg mb-1">{iface.location}</div>
+      <div className="text-sm text-gray-500 mb-3">{iface.name}</div>
+      <div className={`text-8xl font-bold ${iface.status === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+        {iface.status === 'up' ? 'Up' : 'Down'}
+      </div>
+    </div>
+  );
+};
 
 const NewDashboard: React.FC = () => {
   const { selectedSource } = useSource();
@@ -25,6 +50,27 @@ const NewDashboard: React.FC = () => {
   const [metric, setMetric] = useState('cpu_usage');
   const [timeRange, setTimeRange] = useState('last_24h');
   const [queryText, setQueryText] = useState('from(bucket: "metrics")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> mean()');
+
+  // State untuk interface status
+  const [selectedInterface, setSelectedInterface] = useState(INTERFACE_OPTIONS[0].id);
+
+  // State untuk tampilan preview
+  const [showPreview, setShowPreview] = useState(false);
+
+  // Update queryText berdasarkan panel type, interface, dan time range
+  useEffect(() => {
+    if (selectedPanel === 'interface-status') {
+      const interfaceDetails = INTERFACE_OPTIONS.find(i => i.id === selectedInterface);
+      const timeRangeValue = timeRange === 'last_hour' ? '-1h' : 
+                            timeRange === 'last_6h' ? '-6h' : 
+                            timeRange === 'last_12h' ? '-12h' : 
+                            timeRange === 'last_7d' ? '-7d' : 
+                            timeRange === 'last_30d' ? '-30d' : '-24h';
+                            
+      const newQuery = `from(bucket: "network")\n  |> range(start: ${timeRangeValue})\n  |> filter(fn: (r) => r._measurement == "interface_status")\n  |> filter(fn: (r) => r.interface == "${interfaceDetails?.name}")\n  |> filter(fn: (r) => r.device == "${interfaceDetails?.device}")\n  |> last()`;
+      setQueryText(newQuery);
+    }
+  }, [selectedPanel, selectedInterface, timeRange]);
 
   const handleAddTag = () => {
     if (currentTag.trim() && !tags.includes(currentTag.trim())) {
@@ -58,7 +104,7 @@ const NewDashboard: React.FC = () => {
           title: dashboardName,
           query: queryText,
           dataSource: selectedSource.id,
-          metric,
+          metric: selectedPanel === 'interface-status' ? selectedInterface : metric,
           timeRange
         }
       ]
@@ -66,6 +112,11 @@ const NewDashboard: React.FC = () => {
     
     // Redirect ke dashboard explorer setelah berhasil membuat
     navigate('/dashboard');
+  };
+
+  // Mendapatkan detail interface yang dipilih
+  const getSelectedInterfaceDetails = () => {
+    return INTERFACE_OPTIONS.find(i => i.id === selectedInterface);
   };
 
   return (
@@ -186,24 +237,6 @@ const NewDashboard: React.FC = () => {
           </div>
           
           <div>
-            <label htmlFor="metric" className="block text-sm font-medium text-gray-700 mb-1">
-              Metric
-            </label>
-            <select
-              id="metric"
-              value={metric}
-              onChange={(e) => setMetric(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="cpu_usage">CPU Usage</option>
-              <option value="memory_usage">Memory Usage</option>
-              <option value="disk_usage">Disk Usage</option>
-              <option value="network_traffic">Network Traffic</option>
-              <option value="response_time">Response Time</option>
-            </select>
-          </div>
-          
-          <div>
             <label htmlFor="timeRange" className="block text-sm font-medium text-gray-700 mb-1">
               Time Range
             </label>
@@ -222,6 +255,48 @@ const NewDashboard: React.FC = () => {
               <option value="custom">Custom Range</option>
             </select>
           </div>
+
+          {selectedPanel !== 'interface-status' ? (
+            <>
+              <div>
+                <label htmlFor="metric" className="block text-sm font-medium text-gray-700 mb-1">
+                  Metric
+                </label>
+                <select
+                  id="metric"
+                  value={metric}
+                  onChange={(e) => setMetric(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="cpu_usage">CPU Usage</option>
+                  <option value="memory_usage">Memory Usage</option>
+                  <option value="disk_usage">Disk Usage</option>
+                  <option value="network_traffic">Network Traffic</option>
+                  <option value="response_time">Response Time</option>
+                </select>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label htmlFor="interface" className="block text-sm font-medium text-gray-700 mb-1">
+                  Interface
+                </label>
+                <select
+                  id="interface"
+                  value={selectedInterface}
+                  onChange={(e) => setSelectedInterface(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {INTERFACE_OPTIONS.map((iface) => (
+                    <option key={iface.id} value={iface.id}>
+                      {iface.device} - {iface.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
           
           <div>
             <label htmlFor="query" className="block text-sm font-medium text-gray-700 mb-1">
@@ -236,6 +311,36 @@ const NewDashboard: React.FC = () => {
               placeholder="Enter your Flux query here..."
             />
           </div>
+          
+          {selectedPanel === 'interface-status' && (
+            <div>
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-sm font-medium text-gray-700">Panel Preview</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPreview(!showPreview)}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  {showPreview ? 'Hide Preview' : 'Show Preview'}
+                </button>
+              </div>
+              
+              {showPreview && (
+                <div className="bg-gray-100 p-4 rounded-md">
+                  {getSelectedInterfaceDetails() && (
+                    <InterfaceStatusPanel 
+                      interface={{
+                        id: 1,
+                        name: getSelectedInterfaceDetails()?.name || '',
+                        status: 'up',
+                        location: getSelectedInterfaceDetails()?.device || '',
+                      }}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          )}
           
           <div className="flex items-center">
             <input

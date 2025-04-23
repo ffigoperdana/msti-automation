@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 // Data dummy untuk konfigurasi yang tersedia
 const MOCK_CONFIGS = [
-  { id: '1', name: 'Production Config' },
+  { id: '1', name: 'Default Config' },
   { id: '2', name: 'Staging Config' },
   { id: '3', name: 'Development Config' },
   { id: '4', name: 'Database Config' },
@@ -12,14 +12,14 @@ const MOCK_CONFIGS = [
 
 // Data dummy untuk inventory yang tersedia
 const MOCK_INVENTORIES = [
-  { id: '1', name: 'Web Servers' },
+  { id: '1', name: 'Router Nexus' },
   { id: '2', name: 'Database Servers' },
   { id: '3', name: 'Load Balancers' }
 ];
 
 // Data dummy untuk skenario yang tersedia
 const MOCK_SCENARIOS = [
-  { id: '1', name: 'Deploy Web App' },
+  { id: '1', name: 'interface shutdown rollover' },
   { id: '2', name: 'Update Database' },
   { id: '3', name: 'Restart Services' },
   { id: '4', name: 'Backup Database' }

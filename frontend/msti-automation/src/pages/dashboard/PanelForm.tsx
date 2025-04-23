@@ -9,6 +9,16 @@ const PANEL_TYPES = [
   { id: 'gauge', name: 'Gauge', icon: '⏲️' },
   { id: 'stat', name: 'Stat', icon: '📌' },
   { id: 'table', name: 'Table', icon: '🔢' },
+  { id: 'interface-status', name: 'Interface Status', icon: '🔌' },
+];
+
+// Data dummy untuk interface
+const INTERFACE_TYPES = [
+  { id: 'gi0/1', name: 'GigabitEthernet0/1', device: 'Router-1' },
+  { id: 'gi0/2', name: 'GigabitEthernet0/2', device: 'Router-1' },
+  { id: 'gi0/3', name: 'GigabitEthernet0/3', device: 'Router-1' },
+  { id: 'gi0/1-sw', name: 'GigabitEthernet0/1', device: 'Switch-1' },
+  { id: 'gi0/2-sw', name: 'GigabitEthernet0/2', device: 'Switch-1' },
 ];
 
 // Data dummy untuk panel yang sudah ada (untuk mode edit)
@@ -33,6 +43,18 @@ const MOCK_PANELS: Record<string, any> = {
   }
 };
 
+// Komponen Panel Status Interface Preview
+const InterfaceStatusPreview: React.FC<{ deviceName: string; interfaceName: string }> = ({ deviceName, interfaceName }) => {
+  return (
+    <div className="bg-white rounded-lg shadow-sm p-4 border-t-4 border-gray-200">
+      <div className="font-semibold text-gray-700 mb-1">{deviceName}</div>
+      <div className="text-sm text-gray-500 mb-3">{interfaceName}</div>
+      <div className="text-6xl font-bold text-green-600">Up</div>
+      <div className="mt-3 text-xs text-gray-500">Preview Mode</div>
+    </div>
+  );
+};
+
 const PanelForm: React.FC = () => {
   const { selectedSource } = useSource();
   const navigate = useNavigate();
@@ -48,6 +70,10 @@ const PanelForm: React.FC = () => {
   const [queryText, setQueryText] = useState('from(bucket: "metrics")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> mean()');
   const [hasAlert, setHasAlert] = useState(false);
   
+  // State untuk interface status
+  const [selectedInterface, setSelectedInterface] = useState(INTERFACE_TYPES[0].id);
+  const [showInterfacePreview, setShowInterfacePreview] = useState(false);
+  
   // Load data untuk edit mode
   useEffect(() => {
     if (isEditMode && panelId && MOCK_PANELS[panelId]) {
@@ -62,6 +88,21 @@ const PanelForm: React.FC = () => {
     }
   }, [isEditMode, panelId]);
 
+  // Update queryText berdasarkan jenis panel dan timeRange
+  useEffect(() => {
+    if (selectedPanel === 'interface-status') {
+      const interfaceDetails = INTERFACE_TYPES.find(i => i.id === selectedInterface);
+      const timeRangeValue = timeRange === 'last_hour' ? '-1h' : 
+                             timeRange === 'last_6h' ? '-6h' : 
+                             timeRange === 'last_12h' ? '-12h' : 
+                             timeRange === 'last_7d' ? '-7d' : 
+                             timeRange === 'last_30d' ? '-30d' : '-24h';
+                             
+      const newQuery = `from(bucket: "network")\n  |> range(start: ${timeRangeValue})\n  |> filter(fn: (r) => r._measurement == "interface_status")\n  |> filter(fn: (r) => r.interface == "${interfaceDetails?.name}")\n  |> filter(fn: (r) => r.device == "${interfaceDetails?.device}")\n  |> last()`;
+      setQueryText(newQuery);
+    }
+  }, [selectedPanel, selectedInterface, timeRange]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -71,7 +112,7 @@ const PanelForm: React.FC = () => {
       title: panelTitle,
       description: panelDesc,
       type: selectedPanel,
-      metric,
+      metric: selectedPanel === 'interface-status' ? selectedInterface : metric,
       timeRange,
       query: queryText,
       dataSource: selectedSource.id,
@@ -82,6 +123,11 @@ const PanelForm: React.FC = () => {
     
     // Redirect ke halaman dashboard setelah berhasil
     navigate(`/dashboard/view/${dashboardId}`);
+  };
+
+  // Mendapatkan detail interface yang dipilih
+  const getSelectedInterfaceDetails = () => {
+    return INTERFACE_TYPES.find(i => i.id === selectedInterface);
   };
 
   return (
@@ -160,23 +206,71 @@ const PanelForm: React.FC = () => {
             </div>
           </div>
           
-          <div>
-            <label htmlFor="metric" className="block text-sm font-medium text-gray-700 mb-1">
-              Metric
-            </label>
-            <select
-              id="metric"
-              value={metric}
-              onChange={(e) => setMetric(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="cpu_usage">CPU Usage</option>
-              <option value="memory_usage">Memory Usage</option>
-              <option value="disk_usage">Disk Usage</option>
-              <option value="network_traffic">Network Traffic</option>
-              <option value="response_time">Response Time</option>
-            </select>
-          </div>
+          {selectedPanel === 'interface-status' ? (
+            <>
+              <div>
+                <label htmlFor="interface" className="block text-sm font-medium text-gray-700 mb-1">
+                  Interface
+                </label>
+                <select
+                  id="interface"
+                  value={selectedInterface}
+                  onChange={(e) => setSelectedInterface(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {INTERFACE_TYPES.map((iface) => (
+                    <option key={iface.id} value={iface.id}>
+                      {iface.device} - {iface.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Preview
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowInterfacePreview(!showInterfacePreview)}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    {showInterfacePreview ? 'Hide Preview' : 'Show Preview'}
+                  </button>
+                </div>
+                
+                {showInterfacePreview && (
+                  <div className="p-4 bg-gray-50 rounded-md">
+                    {getSelectedInterfaceDetails() && (
+                      <InterfaceStatusPreview 
+                        deviceName={getSelectedInterfaceDetails()?.device || ''}
+                        interfaceName={getSelectedInterfaceDetails()?.name || ''}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div>
+              <label htmlFor="metric" className="block text-sm font-medium text-gray-700 mb-1">
+                Metric
+              </label>
+              <select
+                id="metric"
+                value={metric}
+                onChange={(e) => setMetric(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="cpu_usage">CPU Usage</option>
+                <option value="memory_usage">Memory Usage</option>
+                <option value="disk_usage">Disk Usage</option>
+                <option value="network_traffic">Network Traffic</option>
+                <option value="response_time">Response Time</option>
+              </select>
+            </div>
+          )}
           
           <div>
             <label htmlFor="timeRange" className="block text-sm font-medium text-gray-700 mb-1">

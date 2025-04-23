@@ -17,7 +17,7 @@ interface AlertRule {
 const MOCK_ALERT_RULES: AlertRule[] = [
   {
     id: '1',
-    name: 'High CPU Usage',
+    name: 'Interface Down',
     condition: 'above',
     threshold: 80,
     status: 'firing',
