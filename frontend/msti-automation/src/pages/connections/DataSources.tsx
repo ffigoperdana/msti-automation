@@ -1,267 +1,149 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-
-interface DataSource {
-  id: string;
-  name: string;
-  type: 'influxdb';
-  url: string;
-  auth?: {
-    username?: string;
-    token?: string;
-  };
-  database?: string;
-  isDefault: boolean;
-  health: 'ok' | 'error' | 'unknown';
-}
-
-// Data dummy untuk sumber data
-const MOCK_DATA_SOURCES: DataSource[] = [
-  {
-    id: '1',
-    name: 'InfluxDB Dev',
-    type: 'influxdb',
-    url: 'http://localhost:8086',
-    auth: { 
-      username: 'admin',
-      token: 'MySecretToken123'
-    },
-    database: 'metrics',
-    isDefault: true,
-    health: 'ok'
-  },
-  {
-    id: '2',
-    name: 'InfluxDB Production',
-    type: 'influxdb',
-    url: 'https://influx.example.com',
-    auth: {
-      token: 'ProductionToken456'
-    },
-    database: 'system_metrics',
-    isDefault: false,
-    health: 'ok'
-  },
-  {
-    id: '3',
-    name: 'InfluxDB Staging',
-    type: 'influxdb',
-    url: 'https://influx-staging.example.com',
-    auth: {
-      token: 'StagingToken789'
-    },
-    database: 'app_metrics',
-    isDefault: false,
-    health: 'error'
-  }
-];
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useDataSourceStore, API_KEYS } from '../../store/dataSourceStore';
 
 const TYPE_ICONS = {
   'influxdb': '⏱️'
 };
 
-const DataSources: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dataSources, setDataSources] = useState<DataSource[]>(MOCK_DATA_SOURCES);
+const DataSources = () => {
+  const navigate = useNavigate();
   
-  // Filter data sources berdasarkan pencarian
-  const filteredDataSources = dataSources.filter(ds => 
-    ds.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ds.url.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (ds.database && ds.database.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
-  
-  const setDefaultDataSource = (id: string) => {
-    setDataSources(prevSources => 
-      prevSources.map(source => ({
-        ...source,
-        isDefault: source.id === id
-      }))
-    );
+  // Menggunakan Zustand store
+  const { 
+    dataSources, 
+    fetchDataSources, 
+    deleteDataSource,
+    isLoading,
+    getError
+  } = useDataSourceStore();
+
+  // Muat data sources saat komponen dimuat
+  useEffect(() => {
+    loadDataSources();
+  }, []);
+
+  // Fungsi untuk memuat data sources
+  const loadDataSources = async () => {
+    try {
+      await fetchDataSources();
+    } catch (error) {
+      console.error('Gagal memuat data sources:', error);
+    }
   };
-  
-  const deleteDataSource = (id: string) => {
-    setDataSources(prevSources => prevSources.filter(source => source.id !== id));
+
+  // Fungsi untuk menghapus data source
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Apakah Anda yakin ingin menghapus data source ini?')) {
+      try {
+        await deleteDataSource(id);
+      } catch (error) {
+        console.error('Gagal menghapus data source:', error);
+      }
+    }
   };
-  
+
+  // Navigasi ke halaman tambah data source
+  const handleAddNew = () => {
+    navigate('/connections/new');
+  };
+
+  // Navigasi ke halaman edit data source
+  const handleEdit = (id: string) => {
+    navigate(`/connections/data-sources/edit/${id}`);
+  };
+
+  // Mendapatkan status loading dan error
+  const isLoadingDataSources = isLoading(API_KEYS.GET_DATA_SOURCES);
+  const dataSourcesError = getError(API_KEYS.GET_DATA_SOURCES);
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-          <h1 className="text-2xl font-semibold text-gray-800">Data Sources</h1>
-          <Link 
-            to="/connections/new" 
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Data Source
-          </Link>
-        </div>
-        
-        {/* Search */}
-        <div className="relative max-w-md">
-          <input
-            type="text"
-            placeholder="Search data sources..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-          <svg 
-            className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </div>
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Data Sources</h1>
+        <button
+          onClick={handleAddNew}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+        >
+          Tambah Data Source
+        </button>
       </div>
-      
-      {/* Data Sources List */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Name
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  URL
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Database
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Default
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Health
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredDataSources.map((ds) => (
-                <tr key={ds.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <span className="text-xl mr-2">{TYPE_ICONS[ds.type]}</span>
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{ds.name}</div>
-                        <div className="text-xs text-gray-500 capitalize">{ds.type}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {ds.url}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {ds.database || '-'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {ds.isDefault ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        Default
-                      </span>
-                    ) : (
-                      <button 
-                        onClick={() => setDefaultDataSource(ds.id)}
-                        className="text-xs text-blue-600 hover:text-blue-800"
-                      >
-                        Make Default
-                      </button>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                      ${ds.health === 'ok' 
-                        ? 'bg-green-100 text-green-800' 
-                        : ds.health === 'error' 
-                        ? 'bg-red-100 text-red-800'
-                        : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {ds.health === 'ok' 
-                        ? 'Healthy' 
-                        : ds.health === 'error' 
-                        ? 'Error'
-                        : 'Unknown'
-                      }
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex items-center justify-end space-x-3">
-                      <button className="text-blue-600 hover:text-blue-900">
-                        Test
-                      </button>
-                      <Link 
-                        to={`/connections/data-sources/edit/${ds.id}`}
-                        className="text-blue-600 hover:text-blue-900"
+
+      {/* Error alert */}
+      {dataSourcesError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          Gagal memuat data sources. Silakan coba lagi.
+        </div>
+      )}
+
+      {/* Loading state */}
+      {isLoadingDataSources && (
+        <div className="text-center py-4">
+          <p>Memuat data sources...</p>
+        </div>
+      )}
+
+      {/* Data sources list */}
+      {!isLoadingDataSources && (
+        <div className="bg-white shadow rounded-lg overflow-hidden">
+          {dataSources.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500">Tidak ada data source yang tersedia.</p>
+              <p className="text-gray-500 mt-2">Klik tombol 'Tambah Data Source' untuk menambahkan data source baru.</p>
+            </div>
+          ) : (
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Nama
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Tipe
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    URL
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Aksi
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {dataSources.map((source) => (
+                  <tr key={source.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{source.name}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{source.type}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500">{source.url}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => handleEdit(source.id)}
+                        className="text-indigo-600 hover:text-indigo-900 mr-4"
+                        disabled={isLoading(`${API_KEYS.DELETE_DATA_SOURCE}_${source.id}`)}
                       >
                         Edit
-                      </Link>
-                      {!ds.isDefault && (
-                        <button 
-                          onClick={() => deleteDataSource(ds.id)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          Delete
-                        </button>
-                      )}
-                      <Link
-                        to={`/dashboard/new?datasource=${ds.id}`}
-                        className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                      </button>
+                      <button
+                        onClick={() => handleDelete(source.id)}
+                        className="text-red-600 hover:text-red-900"
+                        disabled={isLoading(`${API_KEYS.DELETE_DATA_SOURCE}_${source.id}`)}
                       >
-                        Build Dashboard
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        {isLoading(`${API_KEYS.DELETE_DATA_SOURCE}_${source.id}`) ? 'Menghapus...' : 'Hapus'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
-        
-        {/* Empty State */}
-        {filteredDataSources.length === 0 && (
-          <div className="text-center py-12">
-            <svg 
-              className="mx-auto h-12 w-12 text-gray-400" 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor" 
-              aria-hidden="true"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={1} 
-                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" 
-              />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No data sources found</h3>
-            <p className="mt-1 text-sm text-gray-500">Add a data source to start visualizing your metrics.</p>
-            <div className="mt-6">
-              <Link
-                to="/connections/new"
-                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <svg className="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Add Data Source
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };

@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useSource } from '../../context/SourceContext';
+import { useDashboardStore, Panel, PanelQuery, DASHBOARD_API_KEYS, QueryResult } from '../../store/dashboardStore';
+import { useDataSourceStore } from '../../store/dataSourceStore';
+import TimeSeries from '../../components/visualizations/TimeSeries';
+import Gauge from '../../components/visualizations/Gauge';
+import TableVisualization from '../../components/visualizations/Table';
+import Interface from '../../components/visualizations/Interface';
 
 // Tipe panel yang didukung
 const PANEL_TYPES = [
-  { id: 'time-series', name: 'Time Series', icon: '📈' },
-  { id: 'bar-chart', name: 'Bar Chart', icon: '📊' },
-  { id: 'gauge', name: 'Gauge', icon: '⏲️' },
-  { id: 'stat', name: 'Stat', icon: '📌' },
-  { id: 'table', name: 'Table', icon: '🔢' },
-  { id: 'interface-status', name: 'Interface Status', icon: '🔌' },
+  { id: 'timeseries', name: 'Time Series', icon: '📈', description: 'Menampilkan data metrik dari waktu ke waktu' },
+  { id: 'gauge', name: 'Gauge', icon: '⏲️', description: 'Menampilkan nilai tunggal dalam bentuk gauge' },
+  { id: 'stat', name: 'Stat', icon: '📌', description: 'Menampilkan nilai tunggal dengan indikator trend' },
+  { id: 'table', name: 'Table', icon: '🔢', description: 'Menampilkan data dalam bentuk tabel' },
+  { id: 'interface', name: 'Interface Status', icon: '🔌', description: 'Menampilkan status antarmuka jaringan' },
 ];
 
 // Data dummy untuk interface
@@ -21,26 +25,13 @@ const INTERFACE_TYPES = [
   { id: 'gi0/2-sw', name: 'GigabitEthernet0/2', device: 'Switch-1' },
 ];
 
-// Data dummy untuk panel yang sudah ada (untuk mode edit)
-const MOCK_PANELS: Record<string, any> = {
-  '1': {
-    title: 'CPU Usage',
-    description: 'Shows CPU usage over time',
-    type: 'time-series',
-    metric: 'cpu_usage',
-    timeRange: 'last_24h',
-    query: 'from(bucket: "metrics")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> mean()',
-    hasAlert: true
-  },
-  '2': {
-    title: 'Memory Usage',
-    description: 'Shows memory consumption',
-    type: 'gauge',
-    metric: 'memory_usage',
-    timeRange: 'last_6h',
-    query: 'from(bucket: "metrics")\n  |> range(start: -6h)\n  |> filter(fn: (r) => r._measurement == "memory")\n  |> last()',
-    hasAlert: false
-  }
+// Template query berdasarkan tipe panel
+const QUERY_TEMPLATES: Record<string, string> = {
+  timeseries: 'from(bucket: "telegraf")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_system")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)',
+  gauge: 'from(bucket: "telegraf")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_system")\n  |> last()',
+  stat: 'from(bucket: "telegraf")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_system")\n  |> last()',
+  table: 'from(bucket: "telegraf")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == "disk")\n  |> filter(fn: (r) => r._field == "used_percent")\n  |> last()',
+  interface: 'from(bucket: "telegraf")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == "snmp")\n  |> filter(fn: (r) => r._field == "ifOperStatus" or r._field == "ifSpeed" or r._field == "ifName")\n  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")'
 };
 
 // Komponen Panel Status Interface Preview
@@ -55,305 +46,688 @@ const InterfaceStatusPreview: React.FC<{ deviceName: string; interfaceName: stri
   );
 };
 
-const PanelForm: React.FC = () => {
-  const { selectedSource } = useSource();
-  const navigate = useNavigate();
+const DEFAULT_PANEL: Omit<Panel, 'id' | 'dashboardId' | 'createdAt' | 'updatedAt'> = {
+  title: 'New Panel',
+  description: '',
+  type: 'timeseries',
+  width: 12,
+  height: 8,
+  position: { x: 0, y: 0 },
+  options: {
+    unit: '',
+    decimals: 2,
+  },
+  queries: []
+};
+
+const PanelForm = () => {
   const { dashboardId, panelId } = useParams<{ dashboardId: string; panelId: string }>();
+  const navigate = useNavigate();
   const isEditMode = Boolean(panelId);
   
-  // State untuk data panel
-  const [panelTitle, setPanelTitle] = useState('');
-  const [panelDesc, setPanelDesc] = useState('');
-  const [selectedPanel, setSelectedPanel] = useState(PANEL_TYPES[0].id);
-  const [metric, setMetric] = useState('cpu_usage');
-  const [timeRange, setTimeRange] = useState('last_24h');
-  const [queryText, setQueryText] = useState('from(bucket: "metrics")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> mean()');
-  const [hasAlert, setHasAlert] = useState(false);
+  // Stores
+  const { 
+    fetchDashboard, 
+    fetchPanel, 
+    createPanel, 
+    updatePanel,
+    runQueries,
+    currentPanel,
+    setCurrentPanel,
+    updateCurrentPanelQuery,
+    addQueryToCurrentPanel,
+    removeQueryFromCurrentPanel,
+    isLoading,
+    getError,
+    queryResults
+  } = useDashboardStore();
   
-  // State untuk interface status
-  const [selectedInterface, setSelectedInterface] = useState(INTERFACE_TYPES[0].id);
-  const [showInterfacePreview, setShowInterfacePreview] = useState(false);
+  const { dataSources, fetchDataSources } = useDataSourceStore();
   
-  // Load data untuk edit mode
+  // Local state
+  const [panelData, setPanelData] = useState<Omit<Panel, 'id' | 'dashboardId' | 'createdAt' | 'updatedAt'>>({ ...DEFAULT_PANEL });
+  const [selectedDataSource, setSelectedDataSource] = useState<string>('');
+  const [isPreviewVisible, setIsPreviewVisible] = useState(false);
+  
+  // Load data sources on mount
   useEffect(() => {
-    if (isEditMode && panelId && MOCK_PANELS[panelId]) {
-      const panel = MOCK_PANELS[panelId];
-      setPanelTitle(panel.title);
-      setPanelDesc(panel.description);
-      setSelectedPanel(panel.type);
-      setMetric(panel.metric);
-      setTimeRange(panel.timeRange);
-      setQueryText(panel.query);
-      setHasAlert(panel.hasAlert);
-    }
-  }, [isEditMode, panelId]);
-
-  // Update queryText berdasarkan jenis panel dan timeRange
+    fetchDataSources();
+  }, [fetchDataSources]);
+  
+  // Load dashboard and panel data if in edit mode
   useEffect(() => {
-    if (selectedPanel === 'interface-status') {
-      const interfaceDetails = INTERFACE_TYPES.find(i => i.id === selectedInterface);
-      const timeRangeValue = timeRange === 'last_hour' ? '-1h' : 
-                             timeRange === 'last_6h' ? '-6h' : 
-                             timeRange === 'last_12h' ? '-12h' : 
-                             timeRange === 'last_7d' ? '-7d' : 
-                             timeRange === 'last_30d' ? '-30d' : '-24h';
-                             
-      const newQuery = `from(bucket: "network")\n  |> range(start: ${timeRangeValue})\n  |> filter(fn: (r) => r._measurement == "interface_status")\n  |> filter(fn: (r) => r.interface == "${interfaceDetails?.name}")\n  |> filter(fn: (r) => r.device == "${interfaceDetails?.device}")\n  |> last()`;
-      setQueryText(newQuery);
+    if (dashboardId) {
+      fetchDashboard(dashboardId);
     }
-  }, [selectedPanel, selectedInterface, timeRange]);
-
-  const handleSubmit = (e: React.FormEvent) => {
+    
+    if (isEditMode && panelId) {
+      fetchPanel(panelId);
+    } else {
+      // Reset current panel in create mode
+      setCurrentPanel(null);
+    }
+  }, [dashboardId, panelId, isEditMode, fetchDashboard, fetchPanel, setCurrentPanel]);
+  
+  // Sync current panel to local state
+  useEffect(() => {
+    if (currentPanel) {
+      setPanelData({
+        title: currentPanel.title,
+        description: currentPanel.description || '',
+        type: currentPanel.type,
+        width: currentPanel.width,
+        height: currentPanel.height,
+        position: currentPanel.position,
+        options: currentPanel.options,
+        queries: currentPanel.queries
+      });
+      
+      // Set selected data source if there's a query
+      if (currentPanel.queries.length > 0) {
+        setSelectedDataSource(currentPanel.queries[0].dataSourceId);
+      }
+    }
+  }, [currentPanel]);
+  
+  // Handler untuk perubahan input
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    
+    if (name.startsWith('options.')) {
+      const optionName = name.replace('options.', '');
+      setPanelData(prev => ({
+        ...prev,
+        options: {
+          ...prev.options,
+          [optionName]: value
+        }
+      }));
+    } else if (name === "type") {
+      // Ketika tipe panel berubah, update juga opsi sesuai tipe
+      let newOptions = { ...panelData.options };
+      
+      if (value === 'gauge') {
+        newOptions = {
+          ...newOptions,
+          min: 0,
+          max: 100,
+          thresholds: [
+            { value: 0, color: '#5470c6' },
+            { value: 70, color: '#fac858' },
+            { value: 90, color: '#ee6666' }
+          ]
+        };
+      } else if (value === 'interface') {
+        newOptions = {
+          ...newOptions,
+          deviceField: 'device',
+          nameField: 'ifName',
+          statusField: 'ifOperStatus',
+          speedField: 'ifSpeed',
+          bytesInField: 'ifInOctets',
+          bytesOutField: 'ifOutOctets'
+        };
+      }
+      
+      setPanelData(prev => ({ 
+        ...prev, 
+        [name]: value,
+        options: newOptions
+      }));
+      
+      // Jika ada query yang aktif, update dengan template yang sesuai
+      if (currentPanel?.queries && currentPanel.queries.length > 0) {
+        const template = QUERY_TEMPLATES[value] || '';
+        
+        if (template) {
+          // Hanya update query jika pengguna belum menulis query mereka sendiri
+          const currentQuery = currentPanel.queries[0];
+          if (!currentQuery.query || currentQuery.query.trim() === '') {
+            updateCurrentPanelQuery(currentQuery.id, { query: template });
+          }
+        }
+      }
+    } else {
+      setPanelData(prev => ({ ...prev, [name]: value }));
+    }
+  };
+  
+  // Handler untuk perubahan query
+  const handleQueryChange = (queryId: string, field: string, value: string) => {
+    updateCurrentPanelQuery(queryId, { [field]: value });
+  };
+  
+  // Handler untuk menambah query
+  const handleAddQuery = () => {
+    if (selectedDataSource) {
+      addQueryToCurrentPanel(selectedDataSource);
+      
+      // Menambahkan template query berdasarkan tipe panel
+      setTimeout(() => {
+        if (currentPanel?.queries) {
+          const newQuery = currentPanel.queries[currentPanel.queries.length - 1];
+          const template = QUERY_TEMPLATES[panelData.type] || '';
+          
+          if (newQuery && template) {
+            updateCurrentPanelQuery(newQuery.id, { query: template });
+          }
+        }
+      }, 100);
+    }
+  };
+  
+  // Handler untuk menghapus query
+  const handleRemoveQuery = (queryId: string) => {
+    removeQueryFromCurrentPanel(queryId);
+  };
+  
+  // Handler untuk menjalankan query dan menampilkan pratinjau
+  const handleRunQuery = async () => {
+    if (currentPanel?.queries && currentPanel.queries.length > 0) {
+      try {
+        await runQueries(currentPanel.queries);
+        setIsPreviewVisible(true);
+      } catch (error) {
+        console.error('Error running queries:', error);
+      }
+    }
+  };
+  
+  // Handler untuk submit form
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    // Simulasi pengiriman data ke API
-    const panelData = {
-      id: panelId || Date.now().toString(),
-      title: panelTitle,
-      description: panelDesc,
-      type: selectedPanel,
-      metric: selectedPanel === 'interface-status' ? selectedInterface : metric,
-      timeRange,
-      query: queryText,
-      dataSource: selectedSource.id,
-      hasAlert
-    };
+    if (!dashboardId) {
+      console.error('Dashboard ID is required');
+      return;
+    }
     
-    console.log('Saving panel:', panelData);
-    
-    // Redirect ke halaman dashboard setelah berhasil
+    try {
+      // Create or update panel
+      if (isEditMode && panelId) {
+        await updatePanel(panelId, panelData);
+      } else {
+        await createPanel(dashboardId, panelData);
+      }
+      
+      // Navigate back to dashboard
+      navigate(`/dashboard/view/${dashboardId}`);
+    } catch (error) {
+      console.error('Failed to save panel:', error);
+    }
+  };
+  
+  // Cancel button handler
+  const handleCancel = () => {
     navigate(`/dashboard/view/${dashboardId}`);
   };
-
-  // Mendapatkan detail interface yang dipilih
-  const getSelectedInterfaceDetails = () => {
-    return INTERFACE_TYPES.find(i => i.id === selectedInterface);
-  };
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <h1 className="text-2xl font-semibold text-gray-800">
-          {isEditMode ? 'Edit Panel' : 'Add New Panel'}
-        </h1>
-        <p className="text-gray-600 mt-1">
-          {isEditMode 
-            ? 'Modify this panels configuration and visualization settings' 
-            : 'Configure a new visualization panel for your dashboard'}
-        </p>
-      </div>
-      
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-sm space-y-6">
-        {/* Panel Details */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-medium text-gray-800 border-b pb-2">Panel Details</h2>
-          
-          <div>
-            <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-              Panel Title <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="title"
-              type="text"
-              value={panelTitle}
-              onChange={(e) => setPanelTitle(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="CPU Usage"
-            />
-          </div>
-          
-          <div>
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-              Description
-            </label>
-            <textarea
-              id="description"
-              value={panelDesc}
-              onChange={(e) => setPanelDesc(e.target.value)}
-              rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Description of what this panel shows..."
-            />
-          </div>
+  
+  // Render visualization preview based on panel type
+  const renderVisualizationPreview = () => {
+    if (!currentPanel || !currentPanel.queries.length) return null;
+    
+    // Get results for the current panel's queries
+    const relevantResults: Record<string, QueryResult> = {};
+    currentPanel.queries.forEach(query => {
+      const result = queryResults[query.refId];
+      if (result) {
+        relevantResults[query.refId] = result;
+      }
+    });
+    
+    // If no results yet, show empty message
+    if (Object.keys(relevantResults).length === 0) {
+      return (
+        <div className="bg-gray-100 rounded p-8 text-center text-gray-500">
+          <p>Tidak ada data untuk ditampilkan. Jalankan query terlebih dahulu.</p>
         </div>
-        
-        {/* Visualization Configuration */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-medium text-gray-800 border-b pb-2">Visualization Configuration</h2>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Visualization Type
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mt-1">
-              {PANEL_TYPES.map((type) => (
-                <div
-                  key={type.id}
-                  onClick={() => setSelectedPanel(type.id)}
-                  className={`cursor-pointer p-3 border rounded-lg flex flex-col items-center ${
-                    selectedPanel === type.id
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <span className="text-2xl mb-1">{type.icon}</span>
-                  <span className="text-sm font-medium">{type.name}</span>
-                </div>
-              ))}
+      );
+    }
+    
+    // Render appropriate visualization based on panel type
+    switch (currentPanel.type) {
+      case 'timeseries':
+        return <TimeSeries data={relevantResults} options={currentPanel.options} />;
+      case 'gauge':
+        return <Gauge data={relevantResults} options={currentPanel.options} />;
+      case 'table':
+        return <TableVisualization data={relevantResults} options={currentPanel.options} />;
+      case 'interface':
+        return <Interface data={relevantResults} options={currentPanel.options} />;
+      default:
+        return (
+          <div className="bg-gray-100 rounded p-8 text-center text-gray-500">
+            <p>Tipe visualisasi {currentPanel.type} belum diimplementasikan.</p>
+          </div>
+        );
+    }
+  };
+  
+  // Menampilkan opsi konfigurasi berdasarkan tipe panel yang dipilih
+  const renderTypeSpecificOptions = () => {
+    if (panelData.type === 'gauge') {
+      return (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="options.min" className="block text-sm font-medium text-gray-700 mb-1">
+                Nilai Minimum
+              </label>
+              <input
+                type="number"
+                id="options.min"
+                name="options.min"
+                value={panelData.options.min || 0}
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded"
+              />
+            </div>
+            <div>
+              <label htmlFor="options.max" className="block text-sm font-medium text-gray-700 mb-1">
+                Nilai Maksimum
+              </label>
+              <input
+                type="number"
+                id="options.max"
+                name="options.max"
+                value={panelData.options.max || 100}
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded"
+              />
             </div>
           </div>
-          
-          {selectedPanel === 'interface-status' ? (
-            <>
-              <div>
-                <label htmlFor="interface" className="block text-sm font-medium text-gray-700 mb-1">
-                  Interface
-                </label>
-                <select
-                  id="interface"
-                  value={selectedInterface}
-                  onChange={(e) => setSelectedInterface(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {INTERFACE_TYPES.map((iface) => (
-                    <option key={iface.id} value={iface.id}>
-                      {iface.device} - {iface.name}
-                    </option>
-                  ))}
-                </select>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Threshold (Warna berubah berdasarkan nilai)
+            </label>
+            <div className="p-3 border border-gray-200 rounded bg-gray-50">
+              <div className="text-xs text-gray-500 mb-2">
+                Nilai threshold dan warna diatur otomatis: 0-70 (biru), 70-90 (kuning), 90-100 (merah)
               </div>
-              
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Preview
+            </div>
+          </div>
+        </>
+      );
+    } else if (panelData.type === 'interface') {
+      return (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="options.deviceField" className="block text-sm font-medium text-gray-700 mb-1">
+                Field Nama Device
+              </label>
+              <input
+                type="text"
+                id="options.deviceField"
+                name="options.deviceField"
+                value={panelData.options.deviceField || 'device'}
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded"
+                placeholder="device"
+              />
+            </div>
+            <div>
+              <label htmlFor="options.nameField" className="block text-sm font-medium text-gray-700 mb-1">
+                Field Nama Interface
+              </label>
+              <input
+                type="text"
+                id="options.nameField"
+                name="options.nameField"
+                value={panelData.options.nameField || 'ifName'}
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded"
+                placeholder="ifName"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="options.statusField" className="block text-sm font-medium text-gray-700 mb-1">
+                Field Status
+              </label>
+              <input
+                type="text"
+                id="options.statusField"
+                name="options.statusField"
+                value={panelData.options.statusField || 'ifOperStatus'}
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded"
+                placeholder="ifOperStatus"
+              />
+            </div>
+            <div>
+              <label htmlFor="options.speedField" className="block text-sm font-medium text-gray-700 mb-1">
+                Field Kecepatan
+              </label>
+              <input
+                type="text"
+                id="options.speedField"
+                name="options.speedField"
+                value={panelData.options.speedField || 'ifSpeed'}
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded"
+                placeholder="ifSpeed"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="options.bytesInField" className="block text-sm font-medium text-gray-700 mb-1">
+                Field Bytes In
+              </label>
+              <input
+                type="text"
+                id="options.bytesInField"
+                name="options.bytesInField"
+                value={panelData.options.bytesInField || 'ifInOctets'}
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded"
+                placeholder="ifInOctets"
+              />
+            </div>
+            <div>
+              <label htmlFor="options.bytesOutField" className="block text-sm font-medium text-gray-700 mb-1">
+                Field Bytes Out
+              </label>
+              <input
+                type="text"
+                id="options.bytesOutField"
+                name="options.bytesOutField"
+                value={panelData.options.bytesOutField || 'ifOutOctets'}
+                onChange={handleInputChange}
+                className="w-full p-2 border border-gray-300 rounded"
+                placeholder="ifOutOctets"
+              />
+            </div>
+          </div>
+          <div>
+            <div className="text-xs text-gray-500 mb-2 mt-2">
+              <p>Catatan: Visualisasi interface memerlukan data dalam format pivot. Contoh query InfluxDB:</p>
+              <pre className="bg-gray-100 p-2 rounded text-xs mt-1 overflow-auto">
+                {QUERY_TEMPLATES.interface}
+              </pre>
+            </div>
+          </div>
+        </>
+      );
+    } else {
+      return (
+        <div>
+          <div className="text-xs text-gray-500 mb-2">
+            Opsi tambahan akan muncul berdasarkan tipe visualisasi yang dipilih.
+          </div>
+        </div>
+      );
+    }
+  };
+  
+  // Loading states
+  const isLoadingPanel = isEditMode ? isLoading(`${DASHBOARD_API_KEYS.GET_PANEL}_${panelId}`) : false;
+  const isSubmitting = isEditMode 
+    ? isLoading(`${DASHBOARD_API_KEYS.UPDATE_PANEL}_${panelId}`)
+    : isLoading(DASHBOARD_API_KEYS.CREATE_PANEL);
+  
+  // Error handling
+  const error = isEditMode 
+    ? getError(`${DASHBOARD_API_KEYS.GET_PANEL}_${panelId}`) || getError(`${DASHBOARD_API_KEYS.UPDATE_PANEL}_${panelId}`)
+    : getError(DASHBOARD_API_KEYS.CREATE_PANEL);
+  
+  return (
+    <div className="container mx-auto px-4 py-6">
+      <div className="bg-white shadow-md rounded-lg">
+        <div className="p-6 border-b">
+          <h1 className="text-2xl font-bold">
+            {isEditMode ? 'Edit Panel' : 'Buat Panel Baru'}
+          </h1>
+        </div>
+        
+        {/* Loading state */}
+        {isLoadingPanel && (
+          <div className="p-6 text-center">
+            <p>Memuat data panel...</p>
+          </div>
+        )}
+        
+        {/* Error message */}
+        {error && (
+          <div className="p-6">
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+              <p>Terjadi kesalahan: {error.message || 'Gagal memproses permintaan'}</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Form */}
+        {!isLoadingPanel && (
+          <form onSubmit={handleSubmit}>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Panel basic info */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-medium border-b pb-2">Detail Panel</h2>
+                
+                <div>
+                  <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+                    Judul
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowInterfacePreview(!showInterfacePreview)}
-                    className="text-sm text-blue-600 hover:text-blue-800"
-                  >
-                    {showInterfacePreview ? 'Hide Preview' : 'Show Preview'}
-                  </button>
+                  <input
+                    type="text"
+                    id="title"
+                    name="title"
+                    value={panelData.title}
+                    onChange={handleInputChange}
+                    required
+                    className="w-full p-2 border border-gray-300 rounded"
+                  />
                 </div>
                 
-                {showInterfacePreview && (
-                  <div className="p-4 bg-gray-50 rounded-md">
-                    {getSelectedInterfaceDetails() && (
-                      <InterfaceStatusPreview 
-                        deviceName={getSelectedInterfaceDetails()?.device || ''}
-                        interfaceName={getSelectedInterfaceDetails()?.name || ''}
-                      />
-                    )}
+                <div>
+                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                    Deskripsi
+                  </label>
+                  <textarea
+                    id="description"
+                    name="description"
+                    value={panelData.description}
+                    onChange={handleInputChange}
+                    rows={2}
+                    className="w-full p-2 border border-gray-300 rounded"
+                  ></textarea>
+                </div>
+                
+                <div>
+                  <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">
+                    Tipe Visualisasi
+                  </label>
+                  <select
+                    id="type"
+                    name="type"
+                    value={panelData.type}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded"
+                  >
+                    {PANEL_TYPES.map(type => (
+                      <option key={type.id} value={type.id}>
+                        {type.icon} {type.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {PANEL_TYPES.find(t => t.id === panelData.type)?.description}
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="width" className="block text-sm font-medium text-gray-700 mb-1">
+                      Lebar
+                    </label>
+                    <input
+                      type="number"
+                      id="width"
+                      name="width"
+                      value={panelData.width}
+                      onChange={handleInputChange}
+                      min="1"
+                      max="12"
+                      className="w-full p-2 border border-gray-300 rounded"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="height" className="block text-sm font-medium text-gray-700 mb-1">
+                      Tinggi
+                    </label>
+                    <input
+                      type="number"
+                      id="height"
+                      name="height"
+                      value={panelData.height}
+                      onChange={handleInputChange}
+                      min="1"
+                      className="w-full p-2 border border-gray-300 rounded"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label htmlFor="options.unit" className="block text-sm font-medium text-gray-700 mb-1">
+                    Unit
+                  </label>
+                  <input
+                    type="text"
+                    id="options.unit"
+                    name="options.unit"
+                    value={panelData.options.unit}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded"
+                    placeholder="%, ms, bytes, etc."
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="options.decimals" className="block text-sm font-medium text-gray-700 mb-1">
+                    Desimal
+                  </label>
+                  <input
+                    type="number"
+                    id="options.decimals"
+                    name="options.decimals"
+                    value={panelData.options.decimals}
+                    onChange={handleInputChange}
+                    min="0"
+                    max="10"
+                    className="w-full p-2 border border-gray-300 rounded"
+                  />
+                </div>
+                
+                {renderTypeSpecificOptions()}
+              </div>
+              
+              {/* Query editor */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-medium border-b pb-2">Query</h2>
+                
+                <div>
+                  <label htmlFor="dataSource" className="block text-sm font-medium text-gray-700 mb-1">
+                    Data Source
+                  </label>
+                  <select
+                    id="dataSource"
+                    value={selectedDataSource}
+                    onChange={(e) => setSelectedDataSource(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded"
+                  >
+                    <option value="">Pilih Data Source</option>
+                    {dataSources.map(ds => (
+                      <option key={ds.id} value={ds.id}>{ds.name}</option>
+                    ))}
+                  </select>
+                </div>
+                
+                {currentPanel?.queries.map((query, index) => (
+                  <div key={query.id} className="border rounded p-4 bg-gray-50">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="font-medium">Query {query.refId}</div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveQuery(query.id)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                    
+                    <div className="mb-2">
+                      <label htmlFor={`query-${query.id}`} className="block text-sm font-medium text-gray-700 mb-1">
+                        Query
+                      </label>
+                      <textarea
+                        id={`query-${query.id}`}
+                        value={query.query}
+                        onChange={(e) => handleQueryChange(query.id, 'query', e.target.value)}
+                        rows={4}
+                        className="w-full p-2 border border-gray-300 rounded font-mono text-sm"
+                        placeholder="from(bucket: \"telegraf\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"cpu\")"
+                      ></textarea>
+                    </div>
+                  </div>
+                ))}
+                
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleAddQuery}
+                    disabled={!selectedDataSource}
+                    className="px-4 py-2 border border-blue-300 text-blue-600 rounded hover:bg-blue-50 disabled:opacity-50"
+                  >
+                    + Tambah Query
+                  </button>
+                  
+                  {currentPanel?.queries.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleRunQuery}
+                      className="ml-2 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                    >
+                      Jalankan Query
+                    </button>
+                  )}
+                </div>
+                
+                {/* Visualization Preview */}
+                {isPreviewVisible && (
+                  <div className="mt-4">
+                    <h3 className="text-md font-medium mb-2">Pratinjau Visualisasi</h3>
+                    <div className="border rounded p-4 bg-white h-64">
+                      {renderVisualizationPreview()}
+                    </div>
                   </div>
                 )}
               </div>
-            </>
-          ) : (
-            <div>
-              <label htmlFor="metric" className="block text-sm font-medium text-gray-700 mb-1">
-                Metric
-              </label>
-              <select
-                id="metric"
-                value={metric}
-                onChange={(e) => setMetric(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="cpu_usage">CPU Usage</option>
-                <option value="memory_usage">Memory Usage</option>
-                <option value="disk_usage">Disk Usage</option>
-                <option value="network_traffic">Network Traffic</option>
-                <option value="response_time">Response Time</option>
-              </select>
             </div>
-          )}
-          
-          <div>
-            <label htmlFor="timeRange" className="block text-sm font-medium text-gray-700 mb-1">
-              Time Range
-            </label>
-            <select
-              id="timeRange"
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="last_hour">Last Hour</option>
-              <option value="last_6h">Last 6 Hours</option>
-              <option value="last_12h">Last 12 Hours</option>
-              <option value="last_24h">Last 24 Hours</option>
-              <option value="last_7d">Last 7 Days</option>
-              <option value="last_30d">Last 30 Days</option>
-              <option value="custom">Custom Range</option>
-            </select>
-          </div>
-        </div>
-        
-        {/* Query Configuration */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-medium text-gray-800 border-b pb-2">Query Configuration</h2>
-          
-          <div>
-            <label htmlFor="query" className="block text-sm font-medium text-gray-700 mb-1">
-              Flux Query <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              id="query"
-              value={queryText}
-              onChange={(e) => setQueryText(e.target.value)}
-              required
-              rows={5}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-              placeholder="from(bucket: &quot;metrics&quot;)
-  |> range(start: -24h)
-  |> filter(fn: (r) => r._measurement == &quot;cpu&quot;)
-  |> mean()"
-            />
-            <div className="mt-2 flex justify-end">
+            
+            {/* Form actions */}
+            <div className="px-6 py-4 bg-gray-50 flex justify-end space-x-2">
               <button
                 type="button"
-                className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                onClick={handleCancel}
+                className="px-4 py-2 border border-gray-300 rounded"
               >
-                Validate Query
+                Batalkan
+              </button>
+              
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-blue-500 text-white rounded disabled:bg-blue-300"
+              >
+                {isSubmitting ? 'Menyimpan...' : 'Simpan'}
               </button>
             </div>
-          </div>
-          
-          <div className="flex items-center">
-            <input
-              id="add-alert"
-              type="checkbox"
-              checked={hasAlert}
-              onChange={(e) => setHasAlert(e.target.checked)}
-              className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
-            />
-            <label htmlFor="add-alert" className="ml-2 block text-sm text-gray-700">
-              Add alert rule for this panel
-            </label>
-          </div>
-        </div>
-        
-        {/* Actions */}
-        <div className="flex justify-end space-x-3 pt-4 border-t">
-          <button
-            type="button"
-            onClick={() => navigate(`/dashboard/view/${dashboardId}`)}
-            className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-blue-600 border border-transparent rounded-md text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            {isEditMode ? 'Save Changes' : 'Add Panel'}
-          </button>
-        </div>
-      </form>
+          </form>
+        )}
+      </div>
     </div>
   );
 };

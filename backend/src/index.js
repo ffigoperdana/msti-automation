@@ -11,6 +11,20 @@ const prisma = new PrismaClient();
 const app = express();
 const server = createServer(app);
 
+// CORS configuration
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*'); // Dalam produksi, ganti dengan domain frontend yang sebenarnya
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+
 // Middleware for JSON requests
 app.use(express.json());
 
