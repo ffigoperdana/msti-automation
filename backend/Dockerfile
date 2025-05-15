@@ -14,9 +14,8 @@ COPY prisma ./prisma/
 # Generate Prisma client
 RUN npx prisma generate
 
-# Copy entrypoint script and set permissions
-COPY entrypoint.sh ./entrypoint/entrypoint.sh
-RUN ["chmod", "+x", "./entrypoint/entrypoint.sh"]
+# Copy entrypoint script with executable permissions
+COPY --chmod=+x entrypoint.sh /app/entrypoint.sh
 
 # Copy the rest of the application
 COPY . .
@@ -29,4 +28,4 @@ ENV PORT=3000
 EXPOSE 3000
 
 # Start the application using entrypoint script
-ENTRYPOINT ["./entrypoint.sh"]
+ENTRYPOINT ["/app/entrypoint.sh"]
