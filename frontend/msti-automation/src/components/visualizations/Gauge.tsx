@@ -59,7 +59,7 @@ const Gauge: React.FC<GaugeProps> = ({ data, options = {} }) => {
         const max = options.max || 100;
         const range = max - min;
         
-        axisLineColors = steps.map((step, index) => {
+        axisLineColors = steps.map((step) => {
           const normalizedValue = (step.value - min) / range;
           return [normalizedValue, step.color] as [number, string];
         });

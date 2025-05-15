@@ -43,7 +43,7 @@ const TableVisualization = ({ data, options }: TableProps) => {
     let rowIndex = 0;
     
     // Process data from query results
-    Object.entries(data).forEach(([refId, queryResult]) => {
+    Object.entries(data).forEach(([, queryResult]) => {
       queryResult.series.forEach(serie => {
         // Extract columns from fields
         const serieColumns = serie.fields.map(field => ({

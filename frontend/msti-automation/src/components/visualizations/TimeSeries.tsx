@@ -34,11 +34,10 @@ const TimeSeries = ({ data, options }: TimeSeriesProps) => {
     
     // Format data for ECharts
     const series: any[] = [];
-    const timeData: string[] = [];
     const allTimestamps = new Set<string>();
     
     // Collect all timestamps first
-    Object.entries(data).forEach(([refId, queryResult]) => {
+    Object.entries(data).forEach(([, queryResult]) => {
       queryResult.series.forEach(serie => {
         serie.data.forEach(point => {
           allTimestamps.add(point.time);
