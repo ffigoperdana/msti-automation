@@ -72,73 +72,50 @@ class MetricService {
     return metrics[metricPath];
   }
 
-  async executeQuery(dataSourceId, queryConfig) {
+  async executeQuery(queryApi, queryConfig) {
     try {
-      const dataSource = await prisma.dataSource.findUnique({
-        where: { id: dataSourceId }
-      });
+      const { bucket, measurement, field, aggregateWindow } = queryConfig;
 
-      if (!dataSource) {
-        throw new Error('Data source not found');
-      }
+      console.log('Executing Flux query with config:', queryConfig);
 
-      const influxDB = new InfluxDB({
-        url: dataSource.url,
-        token: dataSource.token
-      });
+      // Buat query Flux dengan format yang benar untuk timeRange
+      const query = `
+        from(bucket: "${bucket}")
+          |> range(start: -5m)
+          |> filter(fn: (r) => r["_measurement"] == "${measurement}")
+          |> filter(fn: (r) => r["_field"] == "${field}")
+          |> aggregateWindow(
+            every: ${aggregateWindow},
+            fn: mean,
+            createEmpty: false
+          )
+      `;
 
-      const queryApi = influxDB.getQueryApi(dataSource.database);
+      console.log('Generated Flux query:', query);
 
-      // Buat query Flux berdasarkan konfigurasi
-      const fluxQuery = this.buildFluxQuery(queryConfig);
-      
-      // Eksekusi query
-      const result = await this.runQuery(queryApi, fluxQuery);
-      
-      // Format hasil untuk visualisasi
-      const formattedResult = this.formatQueryResult(result, queryConfig);
-
-      return formattedResult;
+      // Execute query
+      const result = await this.runQuery(queryApi, query);
+      console.log('Query result:', result);
+      return result;
     } catch (error) {
       console.error('Error executing query:', error);
       throw error;
     }
   }
 
-  buildFluxQuery(config) {
-    const {
-      bucket,
-      measurement,
-      field,
-      source,
-      timeRange,
-      aggregateWindow
-    } = config;
-
-    return `
-      from(bucket: "${bucket}")
-        |> range(start: ${timeRange.from}, stop: ${timeRange.to})
-        |> filter(fn: (r) => r["_measurement"] == "${measurement}")
-        |> filter(fn: (r) => r["_field"] == "${field}")
-        ${source ? `|> filter(fn: (r) => r["source"] == "${source}")` : ''}
-        |> aggregateWindow(every: ${aggregateWindow}, fn: last, createEmpty: false)
-        |> yield(name: "last")
-    `;
-  }
-
   async runQuery(queryApi, query) {
     return new Promise((resolve, reject) => {
-      const data = [];
+      const rows = [];
       queryApi.queryRows(query, {
         next(row, tableMeta) {
-          const result = tableMeta.toObject(row);
-          data.push(result);
+          const o = tableMeta.toObject(row);
+          rows.push(o);
         },
         error(error) {
           reject(error);
         },
         complete() {
-          resolve(data);
+          resolve(rows);
         },
       });
     });
@@ -236,58 +213,68 @@ class MetricService {
     }
   }
 
-  async executeFluxQuery(dataSourceId, rawQuery, variables = {}) {
+  async executeFluxQuery(queryApi, query, variables = {}) {
     try {
-      const dataSource = await prisma.dataSource.findUnique({
-        where: { id: dataSourceId }
-      });
+      // Pastikan format time range yang benar
+      const timeRange = variables.timeRange || {
+        from: '-1h', // Default 1 jam ke belakang
+        to: 'now()'
+      };
 
-      if (!dataSource) {
-        throw new Error('Data source not found');
+      // Ganti placeholder time range jika ada
+      const queryWithTimeRange = query.replace(/start: now\(\) - 1h/, `start: ${timeRange.from}`);
+
+      console.log('Executing Flux query:', queryWithTimeRange);
+
+      // Execute query
+      const rawResult = await this.runQuery(queryApi, queryWithTimeRange);
+      
+      if (!rawResult || !Array.isArray(rawResult) || rawResult.length === 0) {
+        return {
+          state: "Done",
+          series: []
+        };
       }
 
-      const influxDB = new InfluxDB({
-        url: dataSource.url,
-        token: dataSource.token
-      });
-
-      const queryApi = influxDB.getQueryApi(dataSource.database);
-
-      // Replace variables in query
-      const processedQuery = this.replaceQueryVariables(rawQuery, variables);
-      
-      // Eksekusi query
-      const result = await this.runQuery(queryApi, processedQuery);
-      
-      // Format hasil untuk visualisasi
-      const formattedResult = this.formatFluxQueryResult(result, {
-        query: processedQuery
-      });
+      // Format response sesuai dengan yang diharapkan frontend
+      const formattedResult = {
+        state: "Done",
+        series: [{
+          name: "Interface Status",
+          refId: "A",
+          meta: {
+            executedQueryString: queryWithTimeRange
+          },
+          fields: [
+            {
+              name: "Time",
+              type: "time",
+              values: rawResult.map(row => new Date(row._time).getTime()),
+              config: {
+                unit: "time"
+              }
+            },
+            {
+              name: "Value",
+              type: "number",
+              values: rawResult.map(row => typeof row._value === 'string' ? 
+                row._value === 'up' ? 1 : 0 : 
+                row._value
+              ),
+              config: {
+                unit: "status"
+              }
+            }
+          ],
+          length: rawResult.length
+        }]
+      };
 
       return formattedResult;
     } catch (error) {
       console.error('Error executing Flux query:', error);
       throw error;
     }
-  }
-
-  replaceQueryVariables(query, variables) {
-    let processedQuery = query;
-    
-    // Replace time range variables
-    processedQuery = processedQuery
-      .replace('v.timeRangeStart', `${variables.timeRange?.from || 'now() - 6h'}`)
-      .replace('v.timeRangeStop', `${variables.timeRange?.to || 'now()'}`)
-      .replace('v.windowPeriod', variables.windowPeriod || '10s');
-
-    // Replace custom variables
-    Object.entries(variables).forEach(([key, value]) => {
-      if (key !== 'timeRange' && key !== 'windowPeriod') {
-        processedQuery = processedQuery.replace(`\${${key}}`, value);
-      }
-    });
-
-    return processedQuery;
   }
 
   formatFluxQueryResult(data, config) {
@@ -373,6 +360,28 @@ class MetricService {
 
   generateRequestId() {
     return 'REQ' + Math.random().toString(36).substr(2, 9).toUpperCase();
+  }
+
+  async getMetrics() {
+    try {
+      // Ambil default data source atau data source pertama
+      const dataSource = await prisma.dataSource.findFirst();
+      
+      if (!dataSource) {
+        return {
+          cpu: 0,
+          memory: 0,
+          disk: 0,
+          network: []
+        };
+      }
+
+      const metrics = await this.fetchMetrics(dataSource.id);
+      return metrics;
+    } catch (error) {
+      console.error('Error getting metrics:', error);
+      throw error;
+    }
   }
 }
 

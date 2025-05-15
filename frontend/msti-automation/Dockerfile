@@ -13,7 +13,7 @@ RUN npm ci --legacy-peer-deps
 COPY . .
 
 # Build aplikasi
-RUN npm run build
+RUN npm run build --legacy-peer-deps
 
 # Tahap production (production stage)
 FROM nginx:alpine

@@ -3,6 +3,7 @@ import { QueryResult } from '../../store/dashboardStore';
 
 interface InterfaceProps {
   data: Record<string, QueryResult>;
+  title?: string;
   options: {
     deviceField?: string;
     nameField?: string;
@@ -103,7 +104,7 @@ const InterfaceCard = ({
   );
 };
 
-const Interface = ({ data, options }: InterfaceProps) => {
+const Interface = ({ data, title, options }: InterfaceProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [interfaces, setInterfaces] = useState<Array<{
     id: string;
@@ -173,6 +174,9 @@ const Interface = ({ data, options }: InterfaceProps) => {
   
   return (
     <div ref={containerRef} className="w-full h-full overflow-auto p-2">
+      {title && (
+        <h3 className="text-lg font-medium text-gray-900 mb-4 px-2">{title}</h3>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {interfaces.length > 0 ? (
           interfaces.map(iface => (

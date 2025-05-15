@@ -1,176 +1,148 @@
-import { useRef, useEffect } from 'react';
-import { QueryResult } from '../../store/dashboardStore';
+import React, { useEffect, useRef } from 'react';
 import * as echarts from 'echarts';
+import { QueryResult } from '../../store/dashboardStore';
 
 interface GaugeProps {
   data: Record<string, QueryResult>;
-  options: {
+  options?: {
+    unit?: string;
+    decimals?: number;
     min?: number;
     max?: number;
     thresholds?: {
-      value: number;
-      color: string;
-    }[];
-    unit?: string;
-    decimals?: number;
-    [key: string]: any;
+      steps: Array<{
+        value: number;
+        color: string;
+      }>;
+    };
   };
 }
 
-const Gauge = ({ data, options }: GaugeProps) => {
+const Gauge: React.FC<GaugeProps> = ({ data, options = {} }) => {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
   
-  useEffect(() => {
-    // Cleanup chart on unmount
-    return () => {
-      if (chartInstance.current) {
-        chartInstance.current.dispose();
-      }
-    };
-  }, []);
+  // Extract the value from data
+  let value = 0;
   
-  useEffect(() => {
-    if (!chartRef.current) return;
-    
-    // Initialize chart
-    if (!chartInstance.current) {
-      chartInstance.current = echarts.init(chartRef.current);
-    }
-    
-    // Get the last value from the first series
-    let value = 0;
-    let title = '';
-    
-    if (Object.keys(data).length > 0) {
-      const firstQueryKey = Object.keys(data)[0];
-      const queryResult = data[firstQueryKey];
-      
-      if (queryResult.series.length > 0) {
-        const serie = queryResult.series[0];
-        title = serie.name || firstQueryKey;
-        
-        if (serie.data.length > 0) {
-          // Sort and get the latest value
-          const sortedData = [...serie.data].sort((a, b) => 
-            new Date(b.time).getTime() - new Date(a.time).getTime()
-          );
-          value = sortedData[0].value;
+  if (data && Object.keys(data).length > 0) {
+    const queryResult = data[Object.keys(data)[0]];
+    if (queryResult && queryResult.series?.length > 0) {
+      const series = queryResult.series[0];
+      if (series.data?.length > 0) {
+        const lastValue = series.data[series.data.length - 1];
+        if (lastValue && typeof lastValue === 'object' && 'value' in lastValue) {
+          value = lastValue.value;
         }
       }
     }
-    
-    // Default options
-    const min = options.min || 0;
-    const max = options.max || 100;
-    
-    // Determine threshold colors
-    let axisLineData = [
-      [1, '#5470c6'] // Default color
-    ];
-    
-    if (options.thresholds && options.thresholds.length > 0) {
-      // Sort thresholds by value
-      const sortedThresholds = [...options.thresholds].sort((a, b) => a.value - b.value);
-      
-      // Create axis line data for each threshold
-      axisLineData = sortedThresholds.map((threshold, index, arr) => {
-        const nextValue = index === arr.length - 1 ? max : arr[index + 1].value;
-        return [(threshold.value - min) / (max - min), threshold.color];
-      });
-      
-      // Add the last threshold to complete the gauge
-      if (sortedThresholds.length > 0) {
-        const lastThreshold = sortedThresholds[sortedThresholds.length - 1];
-        axisLineData.push([1, lastThreshold.color]);
+  }
+  
+  useEffect(() => {
+    // Initialize chart
+    if (chartRef.current) {
+      if (!chartInstance.current) {
+        chartInstance.current = echarts.init(chartRef.current);
       }
-    }
-    
-    // Create chart options
-    const chartOptions = {
-      series: [
-        {
+      
+      // Format the value with specified number of decimals
+      const formattedValue = (options.decimals !== undefined) 
+        ? value.toFixed(options.decimals) 
+        : value.toFixed(2);
+      
+      // Prepare axis line colors based on thresholds
+      let axisLineColors: Array<[number, string]> = [[1, '#5470c6']]; // Default blue
+      
+      if (options.thresholds && options.thresholds.steps && options.thresholds.steps.length > 0) {
+        const steps = options.thresholds.steps;
+        const min = options.min || 0;
+        const max = options.max || 100;
+        const range = max - min;
+        
+        axisLineColors = steps.map((step, index) => {
+          const normalizedValue = (step.value - min) / range;
+          return [normalizedValue, step.color] as [number, string];
+        });
+        
+        // Add the final color to the end (use last color to max)
+        if (steps.length > 0 && axisLineColors.length > 0) {
+          axisLineColors[axisLineColors.length - 1][0] = 1;
+        }
+      }
+      
+      // Format display value with unit
+      const unitSuffix = options.unit ? ` ${options.unit}` : '';
+      
+      // Chart options
+      const chartOptions: echarts.EChartsOption = {
+        series: [{
           type: 'gauge',
-          startAngle: 180,
-          endAngle: 0,
-          min,
-          max,
-          splitNumber: 5,
-          title: {
-            fontWeight: 'bolder',
-            fontSize: 14,
-            offsetCenter: [0, '30%'],
+          min: options.min || 0,
+          max: options.max || 100,
+          axisLine: {
+            lineStyle: {
+              width: 30,
+              color: axisLineColors
+            }
           },
           pointer: {
-            icon: 'path://M12.8,0.7l12,40.1H0.7L12.8,0.7z',
-            length: '60%',
-            width: 8,
-            offsetCenter: [0, '50%'],
             itemStyle: {
-              color: 'inherit'
+              color: 'auto'
             }
           },
           axisTick: {
-            length: 12,
+            distance: -30,
+            length: 8,
             lineStyle: {
-              color: 'inherit',
+              color: '#fff',
               width: 2
             }
           },
           splitLine: {
-            length: 20,
+            distance: -30,
+            length: 30,
             lineStyle: {
-              color: 'inherit',
-              width: 2
+              color: '#fff',
+              width: 4
             }
           },
           axisLabel: {
-            color: '#464646',
-            fontSize: 12,
-            distance: -60,
-            formatter: function(value: number) {
-              return value.toFixed(options.decimals || 0) + (options.unit || '');
-            }
+            color: 'inherit',
+            distance: 40,
+            fontSize: 14
           },
           detail: {
-            fontSize: 18,
-            offsetCenter: [0, '60%'],
             valueAnimation: true,
-            formatter: function(value: number) {
-              return value.toFixed(options.decimals || 0) + (options.unit || '');
-            },
-            color: 'inherit'
+            formatter: `{value}${unitSuffix}`,
+            color: 'inherit',
+            fontSize: 30
           },
           data: [{
-            value: value,
-            name: title
-          }],
-          axisLine: {
-            lineStyle: {
-              width: 30,
-              color: axisLineData
+            value: parseFloat(formattedValue),
+            name: options.unit || '',
+            title: {
+              offsetCenter: ['0%', '70%']
             }
-          }
-        }
-      ]
-    };
+          }]
+        }]
+      };
+      
+      // Apply options and render chart
+      chartInstance.current.setOption(chartOptions);
+    }
     
-    // Apply options
-    chartInstance.current.setOption(chartOptions);
-    
-    // Resize handler
+    // Handle resize
     const handleResize = () => {
-      if (chartInstance.current) {
-        chartInstance.current.resize();
-      }
+      chartInstance.current?.resize();
     };
     
     window.addEventListener('resize', handleResize);
     
     return () => {
       window.removeEventListener('resize', handleResize);
+      chartInstance.current?.dispose();
     };
-  }, [data, options]);
+  }, [data, options, value]);
   
   return (
     <div ref={chartRef} className="w-full h-full" />

@@ -5,85 +5,72 @@ import metricService from '../services/metricService.js';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Buat variabel baru
-router.post('/', async (req, res) => {
-  const { name, label, type, query, options, current, dataSourceId, userId } = req.body;
-  
+// Validate variable query
+router.post('/validate', async (req, res) => {
   try {
-    const variable = await prisma.variable.create({
-      data: {
-        name,
-        label,
-        type,
-        query,
-        options,
-        current,
-        dataSourceId,
-        userId
-      }
-    });
+    const { query, type } = req.body;
     
-    res.json(variable);
+    // Untuk tipe query, jalankan query untuk mendapatkan nilai
+    if (type === 'query') {
+      const result = await metricService.executeFluxQuery(null, query);
+      const values = result.map(row => row.value || row._value).filter(Boolean);
+      res.json({ values });
+    } 
+    // Untuk tipe custom dan constant, kembalikan nilai yang diberikan
+    else if (type === 'custom' || type === 'constant') {
+      res.json({ values: [query] });
+    }
+    // Untuk tipe textbox, kembalikan array kosong (akan diisi oleh user)
+    else {
+      res.json({ values: [] });
+    }
   } catch (error) {
-    console.error('Error creating variable:', error);
-    res.status(500).json({ error: "Failed to create variable" });
+    console.error('Error validating variable:', error);
+    res.status(500).json({ error: "Failed to validate variable" });
   }
 });
 
-// Ambil semua variabel untuk user
-router.get('/user/:userId', async (req, res) => {
-  const { userId } = req.params;
-  
+// Get all variables
+router.get('/', async (req, res) => {
   try {
-    const variables = await prisma.variable.findMany({
-      where: {
-        userId
-      },
-      orderBy: {
-        name: 'asc'
-      }
-    });
-    
+    const variables = await prisma.dashboardVariable.findMany();
     res.json(variables);
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch variables" });
   }
 });
 
-// Update variabel
-router.put('/:id', async (req, res) => {
-  const { id } = req.params;
-  const { name, label, type, query, options, current, dataSourceId } = req.body;
-  
+// Create new variable
+router.post('/', async (req, res) => {
   try {
-    const updatedVariable = await prisma.variable.update({
-      where: { id },
-      data: {
-        name,
-        label,
-        type,
-        query,
-        options,
-        current,
-        dataSourceId
-      }
+    const variable = await prisma.dashboardVariable.create({
+      data: req.body
     });
-    
-    res.json(updatedVariable);
+    res.json(variable);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to create variable" });
+  }
+});
+
+// Update variable
+router.put('/:id', async (req, res) => {
+  try {
+    const variable = await prisma.dashboardVariable.update({
+      where: { id: req.params.id },
+      data: req.body
+    });
+    res.json(variable);
   } catch (error) {
     res.status(500).json({ error: "Failed to update variable" });
   }
 });
 
-// Hapus variabel
+// Delete variable
 router.delete('/:id', async (req, res) => {
-  const { id } = req.params;
-  
   try {
-    await prisma.variable.delete({
-      where: { id }
+    await prisma.dashboardVariable.delete({
+      where: { id: req.params.id }
     });
-    
     res.status(204).send();
   } catch (error) {
     res.status(500).json({ error: "Failed to delete variable" });

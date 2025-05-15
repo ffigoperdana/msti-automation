@@ -43,7 +43,7 @@ generate_prisma_client() {
     
     if [ ! -d "node_modules/.prisma/client" ]; then
         log "Men-generate Prisma client..."
-        npx prisma generate
+npx prisma generate
     else
         log "Prisma client sudah tersedia"
     fi
@@ -53,7 +53,7 @@ generate_prisma_client() {
 apply_migrations() {
     if [ "$APPLY_MIGRATIONS" = "true" ]; then
         log "Menerapkan migrasi database..."
-        npx prisma migrate deploy || {
+npx prisma migrate deploy || {
             log "PERINGATAN: Migrasi database gagal, mungkin skema sudah diperbarui atau database belum siap."
             log "Aplikasi akan tetap dijalankan, tetapi mungkin akan mengalami masalah jika skema database tidak sesuai."
         }
@@ -78,15 +78,15 @@ main() {
     
     # Menerapkan migrasi jika diperlukan
     apply_migrations
-    
+
     # Jalankan aplikasi berdasarkan environment
-    if [ "$NODE_ENV" = "production" ]; then
+if [ "$NODE_ENV" = "production" ]; then
         log "Menjalankan aplikasi dalam mode production..."
-        npm start
-    else
+  npm start
+else
         log "Menjalankan aplikasi dalam mode development..."
-        npm run dev
-    fi
+  npm run dev
+fi 
 }
 
 # Set default values untuk environment variables

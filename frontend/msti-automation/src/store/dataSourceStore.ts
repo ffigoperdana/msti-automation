@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { useApiStore } from './apiStore';
+import { API_ENDPOINTS } from '../config';
 
 // Definisikan tipe data DataSource
 export interface DataSource {
@@ -12,6 +13,10 @@ export interface DataSource {
   password?: string;
   database?: string;
   organization?: string;
+  retentionPolicy?: string;
+  defaultMin?: string;
+  defaultMax?: string;
+  isDefault?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -47,7 +52,7 @@ interface DataSourceState {
 }
 
 // Membuat store DataSource
-export const useDataSourceStore = create<DataSourceState>((set, get) => {
+export const useDataSourceStore = create<DataSourceState>((set) => {
   // Akses ke API store
   const apiStore = useApiStore;
   
@@ -59,7 +64,7 @@ export const useDataSourceStore = create<DataSourceState>((set, get) => {
     // Fetch semua data sources
     fetchDataSources: async () => {
       try {
-        const dataSources = await apiStore.getState().get<DataSource[]>('/data-sources', API_KEYS.GET_DATA_SOURCES);
+        const dataSources = await apiStore.getState().get<DataSource[]>(API_ENDPOINTS.DATA_SOURCES, API_KEYS.GET_DATA_SOURCES);
         set({ dataSources });
         return dataSources;
       } catch (error) {
@@ -72,7 +77,9 @@ export const useDataSourceStore = create<DataSourceState>((set, get) => {
     fetchDataSource: async (id: string) => {
       const key = `${API_KEYS.GET_DATA_SOURCE}_${id}`;
       try {
-        const dataSource = await apiStore.getState().get<DataSource>(`/data-sources/${id}`, key);
+        console.log(`Fetching data source with ID: ${id}`);
+        const dataSource = await apiStore.getState().get<DataSource>(`${API_ENDPOINTS.DATA_SOURCES}/${id}`, key);
+        console.log(`Received data source:`, dataSource);
         set({ currentDataSource: dataSource });
         return dataSource;
       } catch (error) {
@@ -84,7 +91,7 @@ export const useDataSourceStore = create<DataSourceState>((set, get) => {
     // Create new data source
     createDataSource: async (dataSource) => {
       try {
-        const newDataSource = await apiStore.getState().post<DataSource>('/data-sources', dataSource, API_KEYS.CREATE_DATA_SOURCE);
+        const newDataSource = await apiStore.getState().post<DataSource>(API_ENDPOINTS.DATA_SOURCES, dataSource, API_KEYS.CREATE_DATA_SOURCE);
         set(state => ({ 
           dataSources: [...state.dataSources, newDataSource],
           currentDataSource: newDataSource
@@ -100,7 +107,7 @@ export const useDataSourceStore = create<DataSourceState>((set, get) => {
     updateDataSource: async (id, dataSource) => {
       const key = `${API_KEYS.UPDATE_DATA_SOURCE}_${id}`;
       try {
-        const updatedDataSource = await apiStore.getState().put<DataSource>(`/data-sources/${id}`, dataSource, key);
+        const updatedDataSource = await apiStore.getState().put<DataSource>(`${API_ENDPOINTS.DATA_SOURCES}/${id}`, dataSource, key);
         set(state => ({
           dataSources: state.dataSources.map(ds => 
             ds.id === id ? updatedDataSource : ds
@@ -118,7 +125,7 @@ export const useDataSourceStore = create<DataSourceState>((set, get) => {
     deleteDataSource: async (id) => {
       const key = `${API_KEYS.DELETE_DATA_SOURCE}_${id}`;
       try {
-        await apiStore.getState().delete<void>(`/data-sources/${id}`, key);
+        await apiStore.getState().delete<void>(`${API_ENDPOINTS.DATA_SOURCES}/${id}`, key);
         set(state => ({
           dataSources: state.dataSources.filter(ds => ds.id !== id),
           currentDataSource: state.currentDataSource?.id === id ? null : state.currentDataSource

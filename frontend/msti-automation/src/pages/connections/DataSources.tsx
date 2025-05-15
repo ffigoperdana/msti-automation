@@ -17,7 +17,7 @@ const DataSources = () => {
     isLoading,
     getError
   } = useDataSourceStore();
-
+  
   // Muat data sources saat komponen dimuat
   useEffect(() => {
     loadDataSources();
@@ -47,7 +47,7 @@ const DataSources = () => {
   const handleAddNew = () => {
     navigate('/connections/new');
   };
-
+  
   // Navigasi ke halaman edit data source
   const handleEdit = (id: string) => {
     navigate(`/connections/data-sources/edit/${id}`);
@@ -56,7 +56,7 @@ const DataSources = () => {
   // Mendapatkan status loading dan error
   const isLoadingDataSources = isLoading(API_KEYS.GET_DATA_SOURCES);
   const dataSourcesError = getError(API_KEYS.GET_DATA_SOURCES);
-
+  
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
@@ -90,38 +90,38 @@ const DataSources = () => {
             <div className="text-center py-8">
               <p className="text-gray-500">Tidak ada data source yang tersedia.</p>
               <p className="text-gray-500 mt-2">Klik tombol 'Tambah Data Source' untuk menambahkan data source baru.</p>
-            </div>
+      </div>
           ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Nama
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Tipe
-                  </th>
+                </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    URL
-                  </th>
+                  URL
+                </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Aksi
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
                 {dataSources.map((source) => (
                   <tr key={source.id}>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">{source.name}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">{source.type}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-500">{source.url}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
                         onClick={() => handleEdit(source.id)}
                         className="text-indigo-600 hover:text-indigo-900 mr-4"
@@ -129,21 +129,21 @@ const DataSources = () => {
                       >
                         Edit
                       </button>
-                      <button
+                        <button 
                         onClick={() => handleDelete(source.id)}
-                        className="text-red-600 hover:text-red-900"
+                          className="text-red-600 hover:text-red-900"
                         disabled={isLoading(`${API_KEYS.DELETE_DATA_SOURCE}_${source.id}`)}
                       >
                         {isLoading(`${API_KEYS.DELETE_DATA_SOURCE}_${source.id}`) ? 'Menghapus...' : 'Hapus'}
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
           )}
-        </div>
-      )}
+          </div>
+        )}
     </div>
   );
 };
