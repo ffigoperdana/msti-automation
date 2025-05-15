@@ -41,6 +41,25 @@ const DashboardExplorer: React.FC = () => {
     fetchDashboards();
   }, []); // Empty dependency array - only run once on mount
 
+  // Handle delete dashboard
+  const handleDeleteDashboard = async (dashboardId: string) => {
+    if (window.confirm('Apakah Anda yakin ingin menghapus dashboard ini? Semua panel yang ada di dalamnya juga akan terhapus.')) {
+      try {
+        setIsLoading(true);
+        await metricService.deleteDashboard(dashboardId);
+        // Refresh dashboard list
+        const response = await metricService.getDashboards();
+        setDashboards(response || []);
+        setError(null);
+      } catch (err) {
+        console.error('Error deleting dashboard:', err);
+        setError('Failed to delete dashboard');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
   // Filter dashboard berdasarkan pencarian
   const filteredDashboards = dashboards.filter(
     dashboard => {
@@ -125,6 +144,12 @@ const DashboardExplorer: React.FC = () => {
                   >
                     View
                   </Link>
+                  <button
+                    onClick={() => handleDeleteDashboard(dashboard.id)}
+                    className="px-3 py-1.5 text-sm bg-transparent border border-red-300 text-red-700 rounded hover:bg-red-50 transition-colors"
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             </div>

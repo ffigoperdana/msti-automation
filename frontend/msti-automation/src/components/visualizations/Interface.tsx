@@ -132,7 +132,7 @@ const Interface = ({ data, title, options }: InterfaceProps) => {
     // Process data from query results
     const interfacesList: any[] = [];
     
-    Object.entries(data).forEach(([refId, queryResult]) => {
+    Object.entries(data).forEach(([, queryResult]) => {
       queryResult.series.forEach(serie => {
         serie.data.forEach(point => {
           // Find field indexes

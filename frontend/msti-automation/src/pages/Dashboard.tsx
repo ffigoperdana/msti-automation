@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -12,10 +11,7 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import SourceSelector from '../components/SourceSelector';
-import { useSource } from '../context/SourceContext';
 import metricService from '../services/metricService';
-import Interface from '../components/visualizations/Interface';
 
 ChartJS.register(
   CategoryScale,

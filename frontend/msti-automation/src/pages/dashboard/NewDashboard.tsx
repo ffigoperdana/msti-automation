@@ -64,19 +64,6 @@ interface NetworkStatus {
 }
 
 // Komponen untuk Panel Interface
-const InterfaceStatusPanel: React.FC<{ 
-  interface: { id: number; name: string; status: string; location: string }
-}> = ({ interface: iface }) => {
-  return (
-    <div className="bg-white rounded-lg shadow-sm p-4 border-t-4 border-gray-200">
-      <div className="font-semibold text-gray-700 text-lg mb-1">{iface.location}</div>
-      <div className="text-sm text-gray-500 mb-3">{iface.name}</div>
-      <div className={`text-8xl font-bold ${iface.status === 'up' ? 'text-green-600' : 'text-red-600'}`}>
-        {iface.status === 'up' ? 'Up' : 'Down'}
-      </div>
-    </div>
-  );
-};
 
 interface DashboardData {
   name: string;
@@ -113,14 +100,12 @@ const NewDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  const [dashboardName, setDashboardName] = useState('');
-  const [dashboardDesc, setDashboardDesc] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
+  const [tags] = useState<string[]>([]);
   const [currentTag, setCurrentTag] = useState('');
   const [selectedPanel, setSelectedPanel] = useState(PANEL_TYPES[0].id);
   
   // State untuk konfigurasi query
-  const [metric, setMetric] = useState('cpu_usage');
+  const [metric] = useState('cpu_usage');
   const [timeRange, setTimeRange] = useState({
     from: 'now() - 1h',
     to: 'now()'
@@ -128,15 +113,15 @@ const NewDashboard: React.FC = () => {
   const [queryText, setQueryText] = useState('from(bucket: "metrics")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> mean()');
 
   // State untuk interface status
-  const [selectedInterface, setSelectedInterface] = useState(INTERFACE_OPTIONS[0].id);
+  const [selectedInterface] = useState(INTERFACE_OPTIONS[0].id);
 
   // State untuk tampilan preview
   const [showPreview, setShowPreview] = useState(false);
 
   // State untuk data dari API
-  const [apiData, setApiData] = useState<ApiResponse['data'] | null>(null);
-  const [loadingApi, setLoadingApi] = useState(false);
-  const [errorApi, setErrorApi] = useState<string | null>(null);
+  const [, setApiData] = useState<ApiResponse['data'] | null>(null);
+  const [, setLoadingApi] = useState(false);
+  const [, setErrorApi] = useState<string | null>(null);
 
   // State untuk tabs
   const [activeTab, setActiveTab] = useState<'panel' | 'variables'>('panel');
@@ -156,7 +141,7 @@ const NewDashboard: React.FC = () => {
   // State untuk data source
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
   const [selectedDataSource, setSelectedDataSource] = useState<string>('');
-  const [availableMetrics, setAvailableMetrics] = useState<string[]>([]);
+  const [, setAvailableMetrics] = useState<string[]>([]);
 
   // State untuk preview
   const [previewData, setPreviewData] = useState<any>(null);
@@ -763,9 +748,6 @@ from(bucket: "${selectedDataSource}")
   };
 
   // Mendapatkan detail interface yang dipilih
-  const getSelectedInterfaceDetails = () => {
-    return INTERFACE_OPTIONS.find(i => i.id === selectedInterface);
-  };
 
   // Handler untuk perubahan data source
   const handleDataSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {

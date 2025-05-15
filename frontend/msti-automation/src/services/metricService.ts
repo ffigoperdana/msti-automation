@@ -3,69 +3,33 @@ import { FluxQueryResponse, FluxQueryParams } from '../types/flux';
 import { API_URL, API_ENDPOINTS } from '../config';
 
 export interface QueryConfig {
-  bucket: string;
   measurement: string;
   field: string;
-  source?: string;
-  timeRange: {
-    from: string;
-    to: string;
+  aggregateWindow?: {
+    every: string;
+    fn: string;
   };
-  aggregateWindow: string;
+  filters?: Array<{
+    key: string;
+    value: string;
+    operator: string;
+  }>;
 }
 
-export interface FluxQueryResult {
+export interface QueryResult {
   state: string;
   series: Array<{
     name: string;
-    refId: string;
-    meta: {
-      executedQueryString: string;
-    };
     fields: Array<{
       name: string;
       type: string;
       values: any[];
-      config?: {
-        unit: string;
-        max?: number;
-        min?: number;
-      };
-      labels?: Record<string, string>;
     }>;
-    length: number;
   }>;
 }
 
-interface DataSource {
-  id: string;
-  name: string;
-  url: string;
-  type: string;
-  token: string;
-  organization: string;
-  database: string;
-}
 
-interface Panel {
-  id: string;
-  title: string;
-  description: string;
-  type: string;
-  options: any;
-  queries: Array<{
-    refId: string;
-    dataSourceId: string;
-    query: string;
-  }>;
-}
 
-interface Dashboard {
-  id: string;
-  name: string;
-  description: string;
-  panels: Panel[];
-}
 
 class MetricService {
 
@@ -81,17 +45,30 @@ class MetricService {
     }
   }
 
-  async executeQuery(dataSourceId: string, queryConfig: QueryConfig): Promise<FluxQueryResult> {
-    try {
-      const response = await axios.post(`${API_URL}/visualizations/query`, {
-        dataSourceId,
-        queryConfig
+  async executeQuery(queryApi: any, queryConfig: QueryConfig): Promise<QueryResult> {
+    // Build Flux query
+    let query = `from(bucket: "${queryConfig.measurement}")
+      |> range(start: -1h)
+      |> filter(fn: (r) => r._measurement == "${queryConfig.measurement}")
+      |> filter(fn: (r) => r._field == "${queryConfig.field}")`;
+
+    // Add filters if any
+    if (queryConfig.filters) {
+      queryConfig.filters.forEach(filter => {
+        query += `\n  |> filter(fn: (r) => r.${filter.key} ${filter.operator} "${filter.value}")`;
       });
-      return response.data;
-    } catch (error) {
-      console.error('Error executing query:', error);
-      throw error;
     }
+
+    // Add aggregation if specified
+    if (queryConfig.aggregateWindow) {
+      query += `\n  |> aggregateWindow(
+        every: ${queryConfig.aggregateWindow.every},
+        fn: ${queryConfig.aggregateWindow.fn},
+        createEmpty: false
+      )`;
+    }
+
+    return this.executeFluxQuery(queryApi, query);
   }
 
   async executeFluxQuery(dataSourceId: string, rawQuery: string, variables: Record<string, any> = {}) {
@@ -292,7 +269,7 @@ class MetricService {
     }
   }
 
-  async validateFluxQuery(dataSourceId: string, query: string, options?: { preview?: boolean }): Promise<{ isValid: boolean; error?: string; data?: any }> {
+  async validateFluxQuery(dataSourceId: string, query: string): Promise<{ isValid: boolean; error?: string; data?: any }> {
     try {
       // Validasi dasar sintaks query
       if (!query.trim()) {

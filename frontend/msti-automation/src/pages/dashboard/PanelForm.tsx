@@ -1,11 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useDashboardStore, Panel, PanelQuery, DASHBOARD_API_KEYS, QueryResult } from '../../store/dashboardStore';
-import { useDataSourceStore } from '../../store/dataSourceStore';
-import TimeSeries from '../../components/visualizations/TimeSeries';
-import Gauge from '../../components/visualizations/Gauge';
-import TableVisualization from '../../components/visualizations/Table';
-import Interface from '../../components/visualizations/Interface';
 import metricService from '../../services/metricService';
 
 interface DataSource {
@@ -25,6 +19,8 @@ interface PanelData {
   dataSourceId?: string;
   queryText?: string;
   options: {
+    measurement: string;
+    field: string;
     unit: string;
     decimals: number;
   };
@@ -36,24 +32,10 @@ interface PanelData {
 }
 
 // Tipe panel yang didukung
-const PANEL_TYPES = [
-  { id: 'timeseries', name: 'Time Series', icon: '📈', description: 'Menampilkan data metrik dari waktu ke waktu' },
-  { id: 'gauge', name: 'Gauge', icon: '⏲️', description: 'Menampilkan nilai tunggal dalam bentuk gauge' },
-  { id: 'stat', name: 'Stat', icon: '📌', description: 'Menampilkan nilai tunggal dengan indikator trend' },
-  { id: 'table', name: 'Table', icon: '🔢', description: 'Menampilkan data dalam bentuk tabel' },
-  { id: 'interface', name: 'Interface Status', icon: '🔌', description: 'Menampilkan status antarmuka jaringan' },
-];
 
 // Data dummy untuk interface
 
 // Template query berdasarkan tipe panel
-const QUERY_TEMPLATES: Record<string, string> = {
-  timeseries: 'from(bucket: "telegraf")\n  |> range(start: -1h)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_system")\n  |> aggregateWindow(every: 1m, fn: mean, createEmpty: false)',
-  gauge: 'from(bucket: "telegraf")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_system")\n  |> last()',
-  stat: 'from(bucket: "telegraf")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> filter(fn: (r) => r._field == "usage_system")\n  |> last()',
-  table: 'from(bucket: "telegraf")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == "disk")\n  |> filter(fn: (r) => r._field == "used_percent")\n  |> last()',
-  interface: 'from(bucket: "telegraf")\n  |> range(start: -5m)\n  |> filter(fn: (r) => r._measurement == "snmp")\n  |> filter(fn: (r) => r._field == "ifOperStatus" or r._field == "ifSpeed" or r._field == "ifName")\n  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")'
-};
 
 // Komponen Panel Status Interface Preview
 
@@ -62,6 +44,8 @@ const DEFAULT_PANEL: PanelData = {
   description: '',
   type: 'timeseries',
   options: {
+    measurement: 'interface_status',
+    field: 'status',
     unit: '',
     decimals: 2,
   },
@@ -98,6 +82,8 @@ const PanelForm: React.FC = () => {
             dataSourceId: panel.queries?.[0]?.dataSourceId,
             queryText: panel.queries?.[0]?.query,
             options: {
+              measurement: panel.options?.measurement || 'interface_status',
+              field: panel.options?.field || 'status',
               unit: panel.options?.unit || '',
               decimals: panel.options?.decimals || 2,
             },
@@ -254,18 +240,55 @@ const PanelForm: React.FC = () => {
           <div>
               <label htmlFor="queryText" className="block text-sm font-medium text-gray-700">
                 Query
-              </label>
-              <textarea
+            </label>
+            <textarea
                 id="queryText"
                 name="queryText"
                 value={panelData.queryText}
                 onChange={handleInputChange}
-                rows={8}
+                rows={4}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono"
-                placeholder={QUERY_TEMPLATES[panelData.type]}
-                required
+                placeholder={`from(bucket: "telegraf")
+  |> range(start: -5m)
+  |> filter(fn: (r) => r._measurement == "interface_status")
+  |> filter(fn: (r) => r._field == "status")`}
+              required
               />
             </div>
+
+            {panelData.type === 'interface-status' && (
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="options.measurement" className="block text-sm font-medium text-gray-700">
+                    Measurement
+                  </label>
+                  <input
+                    type="text"
+                    id="options.measurement"
+                    name="options.measurement"
+                    value={panelData.options.measurement}
+                    onChange={handleOptionsChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                    placeholder="interface_status"
+                  />
+          </div>
+          
+                <div>
+                  <label htmlFor="options.field" className="block text-sm font-medium text-gray-700">
+                    Field
+                  </label>
+            <input
+                    type="text"
+                    id="options.field"
+                    name="options.field"
+                    value={panelData.options.field}
+                    onChange={handleOptionsChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                    placeholder="status"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
         
