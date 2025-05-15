@@ -144,7 +144,7 @@ interface AnsibleState {
 }
 
 // Membuat store untuk Ansible
-export const useAnsibleStore = create<AnsibleState>((set, get) => {
+export const useAnsibleStore = create<AnsibleState>((set) => {
   // Akses ke API store
   const apiStore = useApiStore;
   
