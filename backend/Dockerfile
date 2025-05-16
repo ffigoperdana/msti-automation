@@ -16,7 +16,10 @@ RUN npx prisma generate
 
 # Copy entrypoint script and set permissions
 COPY entrypoint.sh .
-RUN ["chmod", "+x", "entrypoint.sh"]
+RUN apk add --no-cache dos2unix \
+  && dos2unix entrypoint.sh \
+  && chmod +x entrypoint.sh \
+  && ls -l entrypoint.sh
 
 # Copy the rest of the application
 COPY . .
