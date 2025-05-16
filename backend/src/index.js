@@ -39,7 +39,7 @@ app.get('/', (req, res) => {
 // Initialize WebSocket
 websocketService.initialize(server);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Start server
 server.listen(PORT, () => {

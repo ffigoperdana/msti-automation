@@ -43,7 +43,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy' });
 });
 
-const port = process.env.WEBHOOK_PORT || 3001;
+const port = process.env.WEBHOOK_PORT || 3002;
 app.listen(port, () => {
   console.log(`Webhook server is running on port ${port}`);
 }); 

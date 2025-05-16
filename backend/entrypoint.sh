@@ -92,7 +92,7 @@ fi
 # Set default values untuk environment variables
 : "${NODE_ENV:=production}"
 : "${APPLY_MIGRATIONS:=false}"
-: "${PORT:=3000}"
+: "${PORT:=3001}"
 
 # Tangani sinyal untuk graceful shutdown
 trap 'log "Menerima sinyal untuk keluar..."; exit 0' SIGTERM SIGINT
