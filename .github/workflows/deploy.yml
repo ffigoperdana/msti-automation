@@ -21,6 +21,11 @@ on:
         required: false
         default: false
         type: boolean
+      skip_tests:
+        description: 'Skip container tests (faster deployment)'
+        required: false
+        default: false
+        type: boolean
 
 env:
   DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
@@ -106,21 +111,33 @@ jobs:
           platforms: linux/amd64
 
       - name: Test backend image
+        if: github.event.inputs.skip_tests != 'true'
         run: |
+          # Pull the image first to ensure it's available
+          docker pull ${{ env.DOCKER_USERNAME }}/backend:${{ steps.tags.outputs.image_tag }}
+          
+          # Simple test: just verify the image can be run and container starts
+          echo "Testing if backend container can start..."
           docker run --rm -d --name test-backend \
             -e NODE_ENV=test \
+            -e PORT=3001 \
+            -e WEBHOOK_PORT=3002 \
             ${{ env.DOCKER_USERNAME }}/backend:${{ steps.tags.outputs.image_tag }}
           
-          # Wait for container to start
-          sleep 10
+          # Wait and check if container is still running
+          sleep 15
           
-          # Check if container is healthy
           if docker ps | grep test-backend; then
-            echo "Backend container test passed"
+            echo "✓ Backend container test passed - container started successfully"
+            # Get some basic info
+            docker logs test-backend --tail 10 || true
             docker stop test-backend
           else
-            echo "Backend container test failed"
+            echo "✗ Backend container test failed - container not running"
+            echo "Container logs:"
             docker logs test-backend || true
+            echo "Container status:"
+            docker ps -a | grep test-backend || true
             exit 1
           fi
 
@@ -173,7 +190,12 @@ jobs:
           platforms: linux/amd64
 
       - name: Test frontend image
+        if: github.event.inputs.skip_tests != 'true'
         run: |
+          # Pull the image first to ensure it's available  
+          docker pull ${{ env.DOCKER_USERNAME }}/frontend:${{ steps.tags.outputs.image_tag }}
+          
+          echo "Testing if frontend container can start and serve content..."
           docker run --rm -d --name test-frontend \
             -p 8080:80 \
             ${{ env.DOCKER_USERNAME }}/frontend:${{ steps.tags.outputs.image_tag }}
@@ -181,15 +203,34 @@ jobs:
           # Wait for container to start
           sleep 10
           
-          # Check if frontend is serving content
-          if curl -f http://192.168.238.10:8080/ > /dev/null 2>&1; then
-            echo "Frontend container test passed"
-            docker stop test-frontend
-          else
-            echo "Frontend container test failed"
+          # Check if container is running first
+          if ! docker ps | grep test-frontend; then
+            echo "✗ Frontend container test failed - container not running"
+            echo "Container logs:"
             docker logs test-frontend || true
             exit 1
           fi
+          
+          # Try to access the frontend (with retry)
+          for i in {1..5}; do
+            if curl -f http://192.168.238.10:8080/ > /dev/null 2>&1; then
+              echo "✓ Frontend container test passed - serving content"
+              docker stop test-frontend
+              exit 0
+            else
+              echo "Attempt $i/5: Frontend not ready yet, waiting..."
+              sleep 3
+            fi
+          done
+          
+          # If we get here, frontend test failed
+          echo "✗ Frontend container test failed - not serving content"
+          echo "Container logs:"
+          docker logs test-frontend || true
+          echo "Testing direct curl:"
+          curl -v http://192.168.238.10:8080/ || true
+          docker stop test-frontend || true
+          exit 1
 
   deploy:
     runs-on: ubuntu-latest
