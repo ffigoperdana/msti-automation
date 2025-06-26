@@ -16,8 +16,6 @@ on:
 env:
   DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
-  WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
-  WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
 
 jobs:
   detect-changes:
@@ -173,71 +171,26 @@ jobs:
 
       - name: Deployment ready notification
         run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          DEPLOY_TAG="deploy-$(date +%Y%m%d-%H%M%S)-${SHORT_SHA}"
+          
           echo "🚀 DEPLOYMENT READY!"
           echo ""
-          echo "Images have been built and pushed to Docker Hub:"
-          echo "- Backend: ${{ env.DOCKER_USERNAME }}/backend:latest"
-          echo "- Frontend: ${{ env.DOCKER_USERNAME }}/frontend:latest"
+          echo "✅ Images have been built and pushed to Docker Hub:"
+          echo "   • Backend: ${{ env.DOCKER_USERNAME }}/backend:${SHORT_SHA}"
+          echo "   • Frontend: ${{ env.DOCKER_USERNAME }}/frontend:${SHORT_SHA}"
           echo ""
-          echo "To deploy to VPS, run on your laptop:"
-          echo "  ./deploy-from-laptop.sh"
+          echo "📦 Deployment tag created: ${DEPLOY_TAG}"
           echo ""
-          echo "Or check for deployments:"
-          echo "  ./check-deploy.sh"
-
-  trigger-laptop-deployment:
-    runs-on: ubuntu-latest
-    needs: [detect-changes, build-backend, build-frontend, create-deployment-tag]
-    if: |
-      always() && 
-      needs.detect-changes.outputs.should-build == 'true' &&
-      (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped') &&
-      (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped') &&
-      (github.ref_name == 'main' || github.ref_name == 'master')
-    
-    steps:
-      - name: Trigger laptop webhook
-        run: |
-          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-          
-          if [ -n "${{ env.WEBHOOK_URL }}" ] && [ -n "${{ env.WEBHOOK_SECRET }}" ]; then
-            echo "🎯 Triggering laptop deployment webhook..."
-            
-            WEBHOOK_PAYLOAD=$(cat << EOF
-          {
-            "token": "${{ env.WEBHOOK_SECRET }}",
-            "commit": "${{ github.sha }}",
-            "branch": "${{ github.ref_name }}",
-            "imageTag": "${SHORT_SHA}",
-            "timestamp": "${TIMESTAMP}",
-            "repository": "${{ github.repository }}",
-            "actor": "${{ github.actor }}"
-          }
-          EOF
-          )
-            
-            HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" \
-              -X POST \
-              -H "Content-Type: application/json" \
-              -d "$WEBHOOK_PAYLOAD" \
-              "${{ env.WEBHOOK_URL }}/deploy")
-            
-            if [ "$HTTP_STATUS" -eq 200 ]; then
-              echo "✅ Laptop deployment triggered successfully!"
-              cat response.json
-            else
-              echo "⚠️ Webhook trigger failed (HTTP $HTTP_STATUS)"
-              echo "This might mean your laptop is offline or webhook URL is incorrect."
-              echo "You can still deploy manually using: ./deploy-from-laptop.sh"
-              cat response.json || true
-            fi
-          else
-            echo "⚠️ Webhook not configured"
-            echo "To enable automatic laptop deployment:"
-            echo "1. Run webhook server on laptop: node webhook-server.js"
-            echo "2. Expose with ngrok: ngrok http 3333"
-            echo "3. Add GitHub secrets: WEBHOOK_URL and WEBHOOK_SECRET"
-            echo ""
-            echo "For now, deploy manually: ./deploy-from-laptop.sh"
-          fi
+          echo "🖥️  To deploy from your laptop:"
+          echo "   npm run deploy"
+          echo ""
+          echo "   Or manually:"
+          echo "   ./deploy-from-laptop.sh"
+          echo ""
+          echo "📊 Check deployment status:"
+          echo "   ./check-deploy.sh"
+          echo ""
+          echo "🌐 VPS URLs (after deployment):"
+          echo "   • Frontend: http://192.168.238.10:5172 or :5173"
+          echo "   • Backend:  http://192.168.238.10:3001"

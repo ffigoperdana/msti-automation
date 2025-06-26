@@ -1,24 +1,18 @@
 {
-  "name": "msti-automation-webhook",
+  "name": "msti-automation",
   "version": "1.0.0",
-  "description": "Laptop webhook server for MSTI Automation deployment",
-  "main": "webhook-server.js",
+  "description": "MSTI Automation - Manual deployment from laptop to VPS",
   "scripts": {
-    "start": "node webhook-server.js",
-    "dev": "nodemon webhook-server.js",
-    "webhook": "node webhook-server.js"
+    "deploy": "bash deploy-from-laptop.sh",
+    "deploy:check": "bash check-deploy.sh",
+    "deploy:force": "bash deploy-from-laptop.sh --force"
   },
   "keywords": [
-    "webhook",
     "deployment",
-    "automation"
+    "automation",
+    "vps",
+    "docker"
   ],
   "author": "MSTI Automation",
-  "license": "MIT",
-  "dependencies": {
-    "express": "^4.18.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
-  }
+  "license": "MIT"
 } 

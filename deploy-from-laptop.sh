@@ -62,9 +62,12 @@ get_latest_deployment() {
     echo "Latest available: $LATEST_TAG"
     echo "Currently deployed: $CURRENT_DEPLOYED"
     
-    if [ "$LATEST_TAG" = "$CURRENT_DEPLOYED" ]; then
+    if [ "$LATEST_TAG" = "$CURRENT_DEPLOYED" ] && [ "$FORCE_DEPLOY" != "true" ]; then
         success "✅ Already up to date! No deployment needed."
+        echo "Use --force to redeploy anyway."
         exit 0
+    elif [ "$FORCE_DEPLOY" = "true" ]; then
+        warning "🔥 Force deployment requested - will redeploy $LATEST_TAG"
     fi
     
     return 0
@@ -212,8 +215,29 @@ while [[ $# -gt 0 ]]; do
             AUTO_DEPLOY="true"
             shift
             ;;
+        --force)
+            FORCE_DEPLOY="true"
+            AUTO_DEPLOY="true"
+            shift
+            ;;
+        --help|-h)
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --auto    Skip confirmation prompt"
+            echo "  --force   Force deployment even if already up to date"
+            echo "  --help    Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  $0              # Interactive deployment"
+            echo "  $0 --auto       # Auto deployment"
+            echo "  $0 --force      # Force redeploy latest tag"
+            echo ""
+            exit 0
+            ;;
         *)
             echo "Unknown option: $1"
+            echo "Use --help for usage information"
             exit 1
             ;;
     esac
