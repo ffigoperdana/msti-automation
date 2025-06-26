@@ -174,7 +174,20 @@ const runDeployment = async (imageTag, commit) => {
 
         // Step 2: Run deployment script
         log(`🚀 Deploying image tag: ${imageTag}`);
-        const deployResult = await execCommand('./deploy-from-laptop.sh --auto', {
+        
+        // Choose deployment script based on platform
+        let deployCommand = './deploy-from-laptop.sh --auto';
+        if (process.platform === 'win32') {
+            // On Windows, prefer PowerShell script if available
+            if (require('fs').existsSync('./deploy-from-laptop.ps1')) {
+                deployCommand = 'powershell -ExecutionPolicy Bypass -File ./deploy-from-laptop.ps1 -Auto';
+                log('Using PowerShell deployment script for Windows');
+            } else {
+                log('Using bash deployment script via cross-platform handler');
+            }
+        }
+        
+        const deployResult = await execCommand(deployCommand, {
             env: { 
                 ...process.env, 
                 IMAGE_TAG: imageTag,
@@ -225,7 +238,43 @@ const execCommand = (command, options = {}) => {
     return new Promise((resolve, reject) => {
         log(`Executing: ${command}`);
         
-        exec(command, options, (err, stdout, stderr) => {
+        // Handle cross-platform command execution
+        let finalCommand = command;
+        let finalOptions = { ...options };
+        
+        // On Windows, use bash for .sh scripts
+        if (process.platform === 'win32' && command.includes('.sh')) {
+            // Try to use Git Bash (most common on Windows)
+            const bashPaths = [
+                'C:\\Program Files\\Git\\bin\\bash.exe',
+                'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
+                'bash' // If bash is in PATH
+            ];
+            
+            // Use the first available bash
+            let bashPath = 'bash'; // Default fallback
+            for (const path of bashPaths) {
+                try {
+                    require('fs').accessSync(path);
+                    bashPath = `"${path}"`;
+                    break;
+                } catch (e) {
+                    // Continue to next path
+                }
+            }
+            
+            // Escape command for bash -c
+            const escapedCommand = command.replace(/"/g, '\\"');
+            finalCommand = `${bashPath} -c "${escapedCommand}"`;
+            
+            // Set shell options for Windows
+            finalOptions.shell = true;
+            finalOptions.windowsHide = true;
+            
+            log(`Windows detected, using bash: ${finalCommand}`);
+        }
+        
+        exec(finalCommand, finalOptions, (err, stdout, stderr) => {
             if (err) {
                 error(`Command failed: ${err.message}`);
                 if (stderr) error(`STDERR: ${stderr}`);
@@ -258,6 +307,9 @@ const startServer = () => {
         console.log('');
         console.log(`${colors.cyan}📍 Server Details:${colors.reset}`);
         console.log(`   URL: http://localhost:${PORT}`);
+        console.log(`   Platform: ${process.platform}`);
+        console.log(`   Node.js: ${process.version}`);
+        console.log(`   Working Directory: ${process.cwd()}`);
         console.log(`   Endpoints:`);
         console.log(`     POST /deploy   - Trigger deployment`);
         console.log(`     GET  /status   - Deployment status`);
@@ -272,6 +324,27 @@ const startServer = () => {
         console.log(`      WEBHOOK_SECRET=${SECRET_TOKEN}`);
         console.log(`   3. Push code to trigger deployment!`);
         console.log('');
+        
+        // Check deployment scripts
+        const bashScript = './deploy-from-laptop.sh';
+        const psScript = './deploy-from-laptop.ps1';
+        
+        if (process.platform === 'win32') {
+            if (require('fs').existsSync(psScript)) {
+                success(`✅ PowerShell deploy script found: ${psScript}`);
+            } else if (require('fs').existsSync(bashScript)) {
+                success(`✅ Bash deploy script found: ${bashScript} (will use via bash)`);
+            } else {
+                error(`❌ No deploy scripts found! Expected: ${bashScript} or ${psScript}`);
+            }
+        } else {
+            if (require('fs').existsSync(bashScript)) {
+                success(`✅ Deploy script found: ${bashScript}`);
+            } else {
+                error(`❌ Deploy script not found: ${bashScript}`);
+            }
+        }
+        
         log('Waiting for deployment webhooks...');
     });
 };
