@@ -225,11 +225,11 @@ const execCommand = (command, options = {}) => {
     return new Promise((resolve, reject) => {
         log(`Executing: ${command}`);
         
-        exec(command, options, (error, stdout, stderr) => {
-            if (error) {
-                error(`Command failed: ${error.message}`);
+        exec(command, options, (err, stdout, stderr) => {
+            if (err) {
+                error(`Command failed: ${err.message}`);
                 if (stderr) error(`STDERR: ${stderr}`);
-                reject(error);
+                reject(err);
             } else {
                 if (stdout) log(`OUTPUT: ${stdout.trim()}`);
                 resolve(stdout.trim());
