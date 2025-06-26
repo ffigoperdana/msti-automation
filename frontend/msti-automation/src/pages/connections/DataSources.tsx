@@ -69,7 +69,7 @@ const DataSources = () => {
       {/* Error alert */}
       {dataSourcesError && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          Gagal memuat data sources. Silakan coba lagi.
+          Gagal memuat data, Silakan coba lagi.
         </div>
       )}
 
