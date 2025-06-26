@@ -1,0 +1,24 @@
+{
+  "name": "msti-automation-webhook",
+  "version": "1.0.0",
+  "description": "Laptop webhook server for MSTI Automation deployment",
+  "main": "webhook-server.js",
+  "scripts": {
+    "start": "node webhook-server.js",
+    "dev": "nodemon webhook-server.js",
+    "webhook": "node webhook-server.js"
+  },
+  "keywords": [
+    "webhook",
+    "deployment",
+    "automation"
+  ],
+  "author": "MSTI Automation",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+} 

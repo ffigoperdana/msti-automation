@@ -1,161 +1,221 @@
 # MSTI Automation Deployment Setup
 
-## 🎯 Automated GitHub → VPS Deployment
+## 🎯 Hybrid GitHub + Laptop Deployment
 
-Workflow ini mengatasi masalah:
-- Container tidak bisa dihentikan gracefully
-- Harus manual kill process dengan `ps` dan `kill`
-- Manual deployment yang merepotkan
+**Problem Solved**: VPS berada di corporate network dengan VPN, GitHub Actions tidak bisa akses langsung.
 
-## 📋 VPS Setup (One-time)
+**Solution**: GitHub Actions build images → Deploy dari laptop (yang sudah connect VPN).
 
-### 1. Upload Files ke VPS
-```bash
-# Upload folder deployment/ ke VPS di /opt/msti-automation/
-scp -r deployment/ user@your-vps:/opt/msti-automation/
+## 📋 New Workflow
+
+### **GitHub Actions (Automatic)**
+```mermaid
+graph LR
+    A[Git Push] --> B[GitHub Actions]
+    B --> C[Build Images]
+    C --> D[Push to Docker Hub]
+    D --> E[Create Deploy Tag]
+    E --> F[Ready for Deployment]
 ```
 
-### 2. Run Setup Script di VPS
-```bash
-# SSH ke VPS
-ssh user@your-vps
-
-# Navigate to deployment directory
-cd /opt/msti-automation
-
-# Run setup script
-./deployment/vps-setup.sh
+### **Laptop Deployment (Manual)**
+```mermaid
+graph LR
+    F[Check New Deployment] --> G[Deploy from Laptop]
+    G --> H[Sync to VPS via VPN]
+    H --> I[Blue-Green Deploy]
+    I --> J[Health Check]
+    J --> K[Complete]
 ```
 
-### 3. Configure Environment
-```bash
-# Edit environment file
-nano /opt/msti-automation/.env
+## 🚀 How to Use
 
-# Set your values:
-DOCKER_USERNAME=your-dockerhub-username
-DATABASE_URL=postgresql://user:pass@localhost:5432/db
-DOMAIN=yourdomain.com
-# ... etc
+### **1. Development & Build (Automatic)**
+```bash
+# Normal development workflow
+git add .
+git commit -m "your changes"
+git push origin main
+
+# GitHub Actions will automatically:
+# ✅ Build backend & frontend images
+# ✅ Push to Docker Hub
+# ✅ Create deployment tag (deploy-TIMESTAMP-SHA)
+# ✅ Ready for deployment notification
 ```
 
-## 🔧 GitHub Actions Setup
+### **2. Check for New Deployments**
+```bash
+# Quick check di laptop Anda
+./check-deploy.sh
 
-### 1. Set GitHub Secrets
-Go to GitHub repo → Settings → Secrets and variables → Actions
+# Output example:
+# 🔍 Checking for new deployments...
+# Latest available: deploy-20241215-143022-abc1234
+# Currently deployed: deploy-20241215-120000-xyz5678
+# 🚀 New deployment available!
+```
 
-Add these secrets:
+### **3. Deploy to VPS**
+```bash
+# Deploy dari laptop (yang sudah connect VPN)
+./deploy-from-laptop.sh
+
+# Script will:
+# ✅ Check VPS connection via VPN
+# ✅ Sync deployment scripts
+# ✅ Run blue-green deployment
+# ✅ Verify health checks
+# ✅ Show access URLs
+```
+
+## 🔧 One-time Setup
+
+### **1. GitHub Secrets** (Simplified)
+Go to GitHub repo → Settings → Secrets → Actions
+
+**Required secrets:**
 ```
 DOCKER_USERNAME=your-dockerhub-username
 DOCKER_HUB_TOKEN=your-dockerhub-token
-DEPLOY_HOST=your-vps-ip
-DEPLOY_USER=your-vps-username
-DEPLOY_KEY=your-private-ssh-key
 ```
 
-### 2. Generate SSH Key untuk Deployment
+**No longer needed:**
+- ~~DEPLOY_HOST~~ (not used)
+- ~~DEPLOY_USER~~ (not used)  
+- ~~DEPLOY_KEY~~ (not used)
+
+### **2. VPS Setup** (One-time)
 ```bash
-# Di local machine, generate SSH key
-ssh-keygen -t rsa -b 4096 -f ~/.ssh/deploy_key
+# Upload deployment scripts to VPS
+scp -r deployment/ cisco@192.168.238.10:/opt/msti-automation/
 
-# Copy public key ke VPS
-ssh-copy-id -i ~/.ssh/deploy_key.pub user@your-vps
-
-# Copy private key content untuk GitHub secret
-cat ~/.ssh/deploy_key
-# Copy output ini ke GitHub secret DEPLOY_KEY
-```
-
-## 🚀 How It Works
-
-### Current Workflow (Before)
-```bash
-# Yang sekarang Anda lakukan:
-1. Push code to GitHub
-2. GitHub Actions build & push to Docker Hub  
-3. SSH to VPS manually
-4. docker exec container ps              # Check processes
-5. docker exec container kill -9 PID     # Kill processes manually
-6. docker-compose down                   # Stop containers
-7. docker-compose pull                   # Pull new images
-8. docker-compose up -d                  # Start containers
-```
-
-### New Automated Workflow (After)
-```bash
-# Yang akan terjadi otomatis:
-1. Push code to GitHub
-2. GitHub Actions build & push to Docker Hub
-3. GitHub Actions SSH to VPS automatically
-4. deployment/deploy.sh runs automatically
-   - Detects current environment (blue/green)
-   - Deploys to inactive environment
-   - Graceful shutdown with proper signal handling
-   - Health checks
-   - Traffic switching
-   - Cleanup old environment
-```
-
-## 🎮 Manual Commands (if needed)
-
-### Check Status
-```bash
-ssh user@your-vps
+# SSH to VPS and setup
+ssh cisco@192.168.238.10
 cd /opt/msti-automation
-./deployment/container-control.sh status
+./deployment/vps-setup.sh
 ```
 
-### Manual Deployment
+### **3. Laptop Setup** (One-time)
 ```bash
-# Deploy specific version
-IMAGE_TAG=v1.2.3 ./deployment/deploy.sh deploy
+# Make scripts executable
+chmod +x deploy-from-laptop.sh check-deploy.sh
 
-# Rollback
-./deployment/deploy.sh rollback blue
+# Test VPS connection
+ssh cisco@192.168.238.10 "echo 'VPS connection OK'"
 ```
 
-### Container Control
-```bash
-# Graceful stop
-./deployment/container-control.sh stop-container msti-backend-blue
+## 🎮 Commands Reference
 
-# Force kill (last resort)
-./deployment/container-control.sh force-kill msti-backend-blue
+### **Daily Workflow**
+```bash
+# 1. Code & push (trigger build)
+git push origin main
+
+# 2. Check if new deployment ready (run anytime)
+./check-deploy.sh
+
+# 3. Deploy when ready (manual)
+./deploy-from-laptop.sh
+```
+
+### **Manual Commands**
+```bash
+# Quick deployment check
+./check-deploy.sh
+
+# Force deployment (deploy latest available)
+./deploy-from-laptop.sh
+
+# Manual deployment on VPS
+ssh cisco@192.168.238.10
+cd /opt/msti-automation
+deployment/deploy.sh deploy
+
+# Check VPS status
+ssh cisco@192.168.238.10 "cd /opt/msti-automation && deployment/container-control.sh status"
+```
+
+### **GitHub Actions Manual Trigger**
+```bash
+# Force build semua images (via GitHub UI)
+Go to: GitHub → Actions → "Build Images for MSTI Automation" → Run workflow
+Set: force_build = true
 ```
 
 ## 🔍 Troubleshooting
 
-### Container Won't Stop
+### **VPS Connection Issues**
 ```bash
-# Check what's running
-./deployment/container-control.sh status
+# Test VPN connection
+ping 192.168.238.10
 
-# Force kill all processes
-./deployment/container-control.sh force-kill container-name
+# Test SSH
+ssh cisco@192.168.238.10 "echo 'Connection OK'"
+
+# Check if deploy scripts exist on VPS
+ssh cisco@192.168.238.10 "ls -la /opt/msti-automation/deployment/"
 ```
 
-### Deployment Failed
+### **GitHub Actions Failed**
 ```bash
+# Check workflow logs in GitHub
+# Usually Docker Hub credentials or build issues
+
+# Manual trigger with force build
+GitHub → Actions → Run workflow → force_build: true
+```
+
+### **Deployment Failed**
+```bash
+# Check what went wrong
+./deploy-from-laptop.sh
+
+# Manual deployment
+ssh cisco@192.168.238.10
+cd /opt/msti-automation
+deployment/container-control.sh status
+deployment/deploy.sh deploy
+```
+
+### **Container Issues**
+```bash
+# Check containers on VPS
+ssh cisco@192.168.238.10 "docker ps -a | grep msti"
+
 # Check logs
-docker logs msti-backend-blue
+ssh cisco@192.168.238.10 "docker logs msti-backend-blue"
 
-# Manual rollback
-./deployment/deploy.sh rollback previous-environment
-```
-
-### Health Check Failed
-```bash
-# Test health endpoint
-docker exec msti-backend-blue curl http://localhost:3001/health
-
-# Check container health
-./deployment/container-control.sh health-check msti-backend-blue
+# Force reset
+ssh cisco@192.168.238.10 "cd /opt/msti-automation && deployment/container-control.sh stop-env blue && deployment/container-control.sh stop-env green"
 ```
 
 ## ✅ Benefits
 
-1. **No More Manual Process Killing** - Automatic graceful shutdown
-2. **Zero Downtime** - Blue-green deployment
-3. **Automated Rollback** - Auto rollback on failure
-4. **One Command Deployment** - Just push to GitHub
-5. **Production Ready** - Health checks, monitoring, security 
+### **vs Previous Workflow**
+- ✅ **No VPN credentials** di GitHub
+- ✅ **No always-on requirement** untuk laptop
+- ✅ **Same blue-green deployment** dengan container lifecycle management
+- ✅ **Better security** - semua traffic via VPN
+- ✅ **Simpler GitHub Actions** - fokus ke build saja
+
+### **vs Self-Hosted Runner**
+- ✅ **Tidak perlu laptop always on**
+- ✅ **Tidak perlu install GitHub runner**
+- ✅ **Lebih fleksibel** - deploy kapan mau
+- ✅ **Resource laptop tidak kepake** untuk build (GitHub Actions yang handle)
+
+### **vs Pure Manual**
+- ✅ **Automatic builds** di GitHub Actions
+- ✅ **Automatic tagging** untuk track deployments
+- ✅ **Consistent deployment process** dengan scripts
+- ✅ **Health checks dan rollback** tetap otomatis
+
+## 🌐 Access URLs
+
+After successful deployment:
+- **Frontend**: http://192.168.238.10:5172 (Blue) or http://192.168.238.10:5173 (Green)
+- **Backend**: http://192.168.238.10:3001  
+- **Webhook**: http://192.168.238.10:3002
+
+Traffic switching otomatis handled by blue-green deployment system. 

@@ -1,4 +1,4 @@
-name: Build and Deploy MSTI Automation
+name: Build Images for MSTI Automation
 
 on:
   push:
@@ -7,22 +7,8 @@ on:
     branches: [ "main", "master" ]
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Target environment'
-        required: true
-        default: 'auto'
-        type: choice
-        options:
-        - auto
-        - blue
-        - green
-      force_deploy:
-        description: 'Force deployment (skip checks)'
-        required: false
-        default: false
-        type: boolean
-      skip_tests:
-        description: 'Skip container tests (faster deployment)'
+      force_build:
+        description: 'Force build all images'
         required: false
         default: false
         type: boolean
@@ -30,9 +16,8 @@ on:
 env:
   DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
-  DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-  DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-  DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+  WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+  WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
 
 jobs:
   detect-changes:
@@ -40,7 +25,7 @@ jobs:
     outputs:
       backend-changed: ${{ steps.changes.outputs.backend }}
       frontend-changed: ${{ steps.changes.outputs.frontend }}
-      should-deploy: ${{ steps.changes.outputs.backend == 'true' || steps.changes.outputs.frontend == 'true' || github.event.inputs.force_deploy == 'true' }}
+      should-build: ${{ steps.changes.outputs.backend == 'true' || steps.changes.outputs.frontend == 'true' || github.event.inputs.force_build == 'true' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -50,13 +35,13 @@ jobs:
       - name: Detect changes
         id: changes
         run: |
-          if git diff --name-only HEAD~1 HEAD | grep -q "^backend/"; then
+          if git diff --name-only HEAD~1 HEAD | grep -q "^backend/" || [ "${{ github.event.inputs.force_build }}" = "true" ]; then
             echo "backend=true" >> $GITHUB_OUTPUT
           else
             echo "backend=false" >> $GITHUB_OUTPUT
           fi
           
-          if git diff --name-only HEAD~1 HEAD | grep -q "^frontend/"; then
+          if git diff --name-only HEAD~1 HEAD | grep -q "^frontend/" || [ "${{ github.event.inputs.force_build }}" = "true" ]; then
             echo "frontend=true" >> $GITHUB_OUTPUT
           else
             echo "frontend=false" >> $GITHUB_OUTPUT
@@ -65,7 +50,9 @@ jobs:
   build-backend:
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.backend-changed == 'true' || github.event.inputs.force_deploy == 'true'
+    if: needs.detect-changes.outputs.backend-changed == 'true'
+    outputs:
+      image-tag: ${{ steps.tags.outputs.image_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -83,21 +70,14 @@ jobs:
         id: tags
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          BRANCH_NAME=$(echo ${{ github.ref_name }} | sed 's/[^a-zA-Z0-9]/-/g')
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           
-          if [ "${{ github.ref_name }}" = "main" ] || [ "${{ github.ref_name }}" = "master" ]; then
-            TAGS="${{ env.DOCKER_USERNAME }}/backend:latest"
-            TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/backend:${SHORT_SHA}"
-            TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/backend:${TIMESTAMP}"
-            echo "image_tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          else
-            TAGS="${{ env.DOCKER_USERNAME }}/backend:${BRANCH_NAME}"
-            TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/backend:${BRANCH_NAME}-${SHORT_SHA}"
-            echo "image_tag=${BRANCH_NAME}-${SHORT_SHA}" >> $GITHUB_OUTPUT
-          fi
+          TAGS="${{ env.DOCKER_USERNAME }}/backend:latest"
+          TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/backend:${SHORT_SHA}"
+          TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/backend:${TIMESTAMP}"
           
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "image_tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Build and push backend
         uses: docker/build-push-action@v5
@@ -110,41 +90,17 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
-      - name: Test backend image
-        if: github.event.inputs.skip_tests != 'true'
+      - name: Backend build completed
         run: |
-          # Pull the image first to ensure it's available
-          docker pull ${{ env.DOCKER_USERNAME }}/backend:${{ steps.tags.outputs.image_tag }}
-          
-          # Simple test: just verify the image can be run and container starts
-          echo "Testing if backend container can start..."
-          docker run --rm -d --name test-backend \
-            -e NODE_ENV=test \
-            -e PORT=3001 \
-            -e WEBHOOK_PORT=3002 \
-            ${{ env.DOCKER_USERNAME }}/backend:${{ steps.tags.outputs.image_tag }}
-          
-          # Wait and check if container is still running
-          sleep 15
-          
-          if docker ps | grep test-backend; then
-            echo "✓ Backend container test passed - container started successfully"
-            # Get some basic info
-            docker logs test-backend --tail 10 || true
-            docker stop test-backend
-          else
-            echo "✗ Backend container test failed - container not running"
-            echo "Container logs:"
-            docker logs test-backend || true
-            echo "Container status:"
-            docker ps -a | grep test-backend || true
-            exit 1
-          fi
+          echo "✅ Backend image built and pushed successfully!"
+          echo "🐳 Image: ${{ env.DOCKER_USERNAME }}/backend:${{ steps.tags.outputs.image_tag }}"
 
   build-frontend:
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.frontend-changed == 'true' || github.event.inputs.force_deploy == 'true'
+    if: needs.detect-changes.outputs.frontend-changed == 'true'
+    outputs:
+      image-tag: ${{ steps.tags.outputs.image_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -162,21 +118,14 @@ jobs:
         id: tags
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          BRANCH_NAME=$(echo ${{ github.ref_name }} | sed 's/[^a-zA-Z0-9]/-/g')
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           
-          if [ "${{ github.ref_name }}" = "main" ] || [ "${{ github.ref_name }}" = "master" ]; then
-            TAGS="${{ env.DOCKER_USERNAME }}/frontend:latest"
-            TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/frontend:${SHORT_SHA}"
-            TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/frontend:${TIMESTAMP}"
-            echo "image_tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          else
-            TAGS="${{ env.DOCKER_USERNAME }}/frontend:${BRANCH_NAME}"
-            TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/frontend:${BRANCH_NAME}-${SHORT_SHA}"
-            echo "image_tag=${BRANCH_NAME}-${SHORT_SHA}" >> $GITHUB_OUTPUT
-          fi
+          TAGS="${{ env.DOCKER_USERNAME }}/frontend:latest"
+          TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/frontend:${SHORT_SHA}"
+          TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/frontend:${TIMESTAMP}"
           
           echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "image_tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Build and push frontend
         uses: docker/build-push-action@v5
@@ -189,202 +138,106 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
-      - name: Test frontend image
-        if: github.event.inputs.skip_tests != 'true'
+      - name: Frontend build completed
         run: |
-          # Pull the image first to ensure it's available  
-          docker pull ${{ env.DOCKER_USERNAME }}/frontend:${{ steps.tags.outputs.image_tag }}
-          
-          echo "Testing if frontend container can start and serve content..."
-          docker run --rm -d --name test-frontend \
-            -p 8080:80 \
-            ${{ env.DOCKER_USERNAME }}/frontend:${{ steps.tags.outputs.image_tag }}
-          
-          # Wait for container to start
-          sleep 10
-          
-          # Check if container is running first
-          if ! docker ps | grep test-frontend; then
-            echo "✗ Frontend container test failed - container not running"
-            echo "Container logs:"
-            docker logs test-frontend || true
-            exit 1
-          fi
-          
-          # Try to access the frontend (with retry)
-          for i in {1..5}; do
-            if curl -f http://192.168.238.10:8080/ > /dev/null 2>&1; then
-              echo "✓ Frontend container test passed - serving content"
-              docker stop test-frontend
-              exit 0
-            else
-              echo "Attempt $i/5: Frontend not ready yet, waiting..."
-              sleep 3
-            fi
-          done
-          
-          # If we get here, frontend test failed
-          echo "✗ Frontend container test failed - not serving content"
-          echo "Container logs:"
-          docker logs test-frontend || true
-          echo "Testing direct curl:"
-          curl -v http://192.168.238.10:8080/ || true
-          docker stop test-frontend || true
-          exit 1
+          echo "✅ Frontend image built and pushed successfully!"
+          echo "🐳 Image: ${{ env.DOCKER_USERNAME }}/frontend:${{ steps.tags.outputs.image_tag }}"
 
-  deploy:
+  create-deployment-tag:
     runs-on: ubuntu-latest
     needs: [detect-changes, build-backend, build-frontend]
     if: |
       always() && 
-      needs.detect-changes.outputs.should-deploy == 'true' &&
+      needs.detect-changes.outputs.should-build == 'true' &&
       (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped') &&
       (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped') &&
       (github.ref_name == 'main' || github.ref_name == 'master')
-    
-    environment: production
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup SSH
+      - name: Create deployment tag
         run: |
-          mkdir -p ~/.ssh
-          echo "${{ env.DEPLOY_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H ${{ env.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          DEPLOY_TAG="deploy-${TIMESTAMP}-${SHORT_SHA}"
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          git tag "$DEPLOY_TAG"
+          git push origin "$DEPLOY_TAG"
+          
+          echo "✅ Created deployment tag: $DEPLOY_TAG"
 
-      - name: Prepare deployment
-        id: prepare
+      - name: Deployment ready notification
+        run: |
+          echo "🚀 DEPLOYMENT READY!"
+          echo ""
+          echo "Images have been built and pushed to Docker Hub:"
+          echo "- Backend: ${{ env.DOCKER_USERNAME }}/backend:latest"
+          echo "- Frontend: ${{ env.DOCKER_USERNAME }}/frontend:latest"
+          echo ""
+          echo "To deploy to VPS, run on your laptop:"
+          echo "  ./deploy-from-laptop.sh"
+          echo ""
+          echo "Or check for deployments:"
+          echo "  ./check-deploy.sh"
+
+  trigger-laptop-deployment:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-backend, build-frontend, create-deployment-tag]
+    if: |
+      always() && 
+      needs.detect-changes.outputs.should-build == 'true' &&
+      (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped') &&
+      (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped') &&
+      (github.ref_name == 'main' || github.ref_name == 'master')
+    
+    steps:
+      - name: Trigger laptop webhook
         run: |
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           TIMESTAMP=$(date +%Y%m%d-%H%M%S)
           
-          echo "image_tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "deployment_id=${TIMESTAMP}" >> $GITHUB_OUTPUT
-
-      - name: Deploy to server
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
-            set -e
+          if [ -n "${{ env.WEBHOOK_URL }}" ] && [ -n "${{ env.WEBHOOK_SECRET }}" ]; then
+            echo "🎯 Triggering laptop deployment webhook..."
             
-            # Navigate to deployment directory
-            cd /opt/msti-automation
-            
-            # Pull latest deployment scripts
-            git pull origin main
-            
-            # Set environment variables
-            export DOCKER_USERNAME="${{ env.DOCKER_USERNAME }}"
-            export IMAGE_TAG="${{ steps.prepare.outputs.image_tag }}"
-            export DEPLOYMENT_TIMESTAMP="${{ steps.prepare.outputs.deployment_id }}"
-            export KEEP_OLD_ENV="true"  # Keep for rollback during automated deployment
-            
-            # Make scripts executable
-            chmod +x deployment/*.sh
-            
-            # Run deployment
-            deployment/deploy.sh deploy
+            WEBHOOK_PAYLOAD=$(cat << EOF
+          {
+            "token": "${{ env.WEBHOOK_SECRET }}",
+            "commit": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "imageTag": "${SHORT_SHA}",
+            "timestamp": "${TIMESTAMP}",
+            "repository": "${{ github.repository }}",
+            "actor": "${{ github.actor }}"
+          }
           EOF
-
-      - name: Verify deployment
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
-            # Wait a bit for deployment to stabilize
-            sleep 30
+          )
             
-            # Check deployment status
-            cd /opt/msti-automation
-            deployment/container-control.sh status
+            HTTP_STATUS=$(curl -s -o response.json -w "%{http_code}" \
+              -X POST \
+              -H "Content-Type: application/json" \
+              -d "$WEBHOOK_PAYLOAD" \
+              "${{ env.WEBHOOK_URL }}/deploy")
             
-            # Run basic health checks
-            for service in backend frontend webhook; do
-              container_name="msti-${service}-$(deployment/container-control.sh status | grep "Active environment:" | grep -o "blue\|green")"
-              if deployment/container-control.sh health-check "$container_name"; then
-                echo "✓ $service is healthy"
-              else
-                echo "✗ $service health check failed"
-                exit 1
-              fi
-            done
-            
-            echo "Deployment verification completed successfully"
-          EOF
-
-      - name: Cleanup old environment
-        if: success()
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
-            cd /opt/msti-automation
-            
-            # Wait before cleanup
-            sleep 60
-            
-            # Clean up old environment
-            current_env=$(deployment/container-control.sh status | grep "Active environment:" | grep -o "blue\|green")
-            old_env="blue"
-            if [ "$current_env" = "blue" ]; then
-              old_env="green"
+            if [ "$HTTP_STATUS" -eq 200 ]; then
+              echo "✅ Laptop deployment triggered successfully!"
+              cat response.json
+            else
+              echo "⚠️ Webhook trigger failed (HTTP $HTTP_STATUS)"
+              echo "This might mean your laptop is offline or webhook URL is incorrect."
+              echo "You can still deploy manually using: ./deploy-from-laptop.sh"
+              cat response.json || true
             fi
-            
-            deployment/container-control.sh stop-env "$old_env" || true
-            deployment/container-control.sh cleanup
-          EOF
-
-      - name: Rollback on failure
-        if: failure()
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'EOF'
-            cd /opt/msti-automation
-            
-            # Get current and previous environments
-            current_env=$(deployment/container-control.sh status | grep "Active environment:" | grep -o "blue\|green" || echo "")
-            
-            if [ -n "$current_env" ]; then
-              old_env="blue"
-              if [ "$current_env" = "blue" ]; then
-                old_env="green"
-              fi
-              
-              # Check if old environment exists
-              if docker ps -a | grep "msti-.*-$old_env"; then
-                echo "Rolling back to $old_env environment"
-                deployment/deploy.sh rollback "$old_env"
-              else
-                echo "No previous environment available for rollback"
-              fi
-            fi
-          EOF
-
-  notify:
-    runs-on: ubuntu-latest
-    needs: [detect-changes, build-backend, build-frontend, deploy]
-    if: always() && needs.detect-changes.outputs.should-deploy == 'true'
-    
-    steps:
-      - name: Prepare notification
-        id: prepare
-        run: |
-          if [ "${{ needs.deploy.result }}" = "success" ]; then
-            echo "status=✅ Success" >> $GITHUB_OUTPUT
-            echo "color=good" >> $GITHUB_OUTPUT
           else
-            echo "status=❌ Failed" >> $GITHUB_OUTPUT
-            echo "color=danger" >> $GITHUB_OUTPUT
+            echo "⚠️ Webhook not configured"
+            echo "To enable automatic laptop deployment:"
+            echo "1. Run webhook server on laptop: node webhook-server.js"
+            echo "2. Expose with ngrok: ngrok http 3333"
+            echo "3. Add GitHub secrets: WEBHOOK_URL and WEBHOOK_SECRET"
+            echo ""
+            echo "For now, deploy manually: ./deploy-from-laptop.sh"
           fi
-          
-          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-          echo "sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
-
-      - name: Deployment notification
-        run: |
-          echo "Deployment ${{ steps.prepare.outputs.status }}"
-          echo "SHA: ${{ steps.prepare.outputs.sha }}"
-          echo "Branch: ${{ github.ref_name }}"
-          echo "Actor: ${{ github.actor }}"
-          
-          # Add webhook notification here if needed
-          # curl -X POST -H 'Content-type: application/json' \
-          #   --data '{"text":"Deployment ${{ steps.prepare.outputs.status }} for ${{ github.repository }}"}' \
-          #   ${{ secrets.SLACK_WEBHOOK_URL }} 
