@@ -13,6 +13,9 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: write
+
 env:
   DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
