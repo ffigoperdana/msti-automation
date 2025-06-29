@@ -31,7 +31,7 @@ import ContactPointForm from './pages/alerting/contacts/ContactPointForm'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 
 function App() {
-  const { isAuthenticated, checkSession } = useAuthStore();
+  const { checkSession } = useAuthStore();
 
   // Check session on app load
   useEffect(() => {
