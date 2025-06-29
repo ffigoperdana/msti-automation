@@ -38,6 +38,8 @@ npm run deploy
 npm run deploy:force
 ```
 
+**💡 Tip**: Set up SSH key authentication for passwordless deployment! See [SSH_SETUP.md](./SSH_SETUP.md)
+
 #### 4. Check Status
 ```bash
 # Check deployment status
@@ -75,6 +77,12 @@ npm run deploy:rollback     # Rollback to previous environment
 ### Troubleshooting Commands
 ```bash
 npm run fix:containers      # Fix stuck containers (upload & run fix script)
+npm run fix:env            # Fix .env file format issues
+npm run fix:permissions    # Fix backend container permissions
+
+# SSH Setup & Testing
+npm run ssh:test           # Test SSH key authentication
+npm run ssh:setup          # Open SSH setup guide
 
 # Manual troubleshooting
 ssh cisco@192.168.238.10

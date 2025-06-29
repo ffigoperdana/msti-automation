@@ -171,21 +171,14 @@ start_webhook_server() {
 
 # Monitor processes
 monitor_processes() {
-    while true; do
-        # Check main application
-        if [ -n "$MAIN_PID" ] && ! kill -0 "$MAIN_PID" 2>/dev/null; then
-            error "Main application died unexpectedly"
-            graceful_shutdown
-        fi
-        
-        # Check webhook server
-        if [ -n "$WEBHOOK_PID" ] && ! kill -0 "$WEBHOOK_PID" 2>/dev/null; then
-            warn "Webhook server died, restarting..."
-            start_webhook_server
-        fi
-        
-        sleep 5
-    done
+    log "Starting process monitoring..."
+    
+    # Wait for child processes to complete
+    wait
+    
+    # If we reach here, a child process has exited
+    log "Child process exited, shutting down..."
+    graceful_shutdown
 }
 
 # Setup signal handlers
@@ -195,8 +188,8 @@ setup_signal_handlers() {
     trap 'log "Received SIGINT"; graceful_shutdown' INT
     trap 'log "Received SIGQUIT"; graceful_shutdown' QUIT
     
-    # Handle child process termination
-    trap 'log "Child process terminated"' CHLD
+    # Don't trap CHLD as it causes infinite loops
+    # trap 'log "Child process terminated"' CHLD
 }
 
 # Health check function

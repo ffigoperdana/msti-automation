@@ -2,7 +2,7 @@
   "name": "backend",
   "version": "1.0.0",
   "type": "module",
-  "description": "MSTI Automation Backend - Express.js API with PostgreSQL and InfluxDB integration - Fixed entrypoint v1.2",
+  "description": "MSTI Automation Backend - Express.js API with PostgreSQL and InfluxDB integration - Fixed signal handling v1.3",
   "main": "index.js",
   "scripts": {
     "start": "node src/index.js",

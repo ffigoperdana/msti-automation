@@ -38,10 +38,17 @@ warning() {
 # Check if we can reach VPS
 check_vps_connection() {
     log "Checking VPS connection..."
-    if ssh -o ConnectTimeout=10 "$VPS_HOST" "echo 'VPS connection OK'" > /dev/null 2>&1; then
-        success "✅ VPS connection successful"
+    
+    # Test SSH connection with key authentication
+    if ssh -o ConnectTimeout=10 -o BatchMode=yes -o PasswordAuthentication=no "$VPS_HOST" "echo 'VPS connection OK'" > /dev/null 2>&1; then
+        success "✅ VPS connection successful (using SSH key)"
+    elif ssh -o ConnectTimeout=10 "$VPS_HOST" "echo 'VPS connection OK'" > /dev/null 2>&1; then
+        warning "⚠️ VPS connection successful (using password)"
+        warning "💡 Consider setting up SSH key authentication for faster deployment"
+        warning "   See SSH_SETUP.md for instructions"
     else
-        error "❌ Cannot connect to VPS. Check your VPN connection."
+        error "❌ Cannot connect to VPS. Check your VPN connection and SSH setup."
+        error "   Run: ssh cisco@192.168.238.10 to test connection manually"
         exit 1
     fi
 }
@@ -77,8 +84,11 @@ get_latest_deployment() {
 sync_deployment_scripts() {
     log "Syncing deployment scripts to VPS..."
     
+    # Setup SSH connection multiplexing for faster transfers
+    SSH_OPTS="-o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
+    
     # Ensure deployment directory exists
-    ssh "$VPS_HOST" "mkdir -p $DEPLOY_DIR"
+    ssh $SSH_OPTS "$VPS_HOST" "mkdir -p $DEPLOY_DIR"
     
     # Check if rsync is available, otherwise use scp
     if command -v rsync > /dev/null 2>&1; then
@@ -86,6 +96,7 @@ sync_deployment_scripts() {
         if rsync -avz --delete \
             --exclude='.git' \
             --exclude='node_modules' \
+            -e "ssh $SSH_OPTS" \
             ./deployment/ "$VPS_HOST:$DEPLOY_DIR/deployment/"; then
             success "✅ rsync completed successfully"
         else
@@ -98,28 +109,22 @@ sync_deployment_scripts() {
     fi
     
     # Sync git repo (for deployment tags)
-    ssh "$VPS_HOST" "cd $DEPLOY_DIR && git fetch --tags" || true
+    ssh $SSH_OPTS "$VPS_HOST" "cd $DEPLOY_DIR && git fetch --tags" || true
     
     success "✅ Deployment scripts synced"
 }
 
 # Fallback sync function using scp
 sync_with_scp() {
-    # Remove old deployment directory and recreate
-    ssh "$VPS_HOST" "rm -rf $DEPLOY_DIR/deployment && mkdir -p $DEPLOY_DIR/deployment"
+    # Use SSH multiplexing for faster transfers
+    SSH_OPTS="-o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
     
-    # Copy each file in deployment directory
-    for file in ./deployment/*; do
-        if [ -f "$file" ]; then
-            log "Copying $(basename "$file")..."
-            scp "$file" "$VPS_HOST:$DEPLOY_DIR/deployment/"
-        elif [ -d "$file" ]; then
-            dir_name=$(basename "$file")
-            log "Copying directory $dir_name/..."
-            ssh "$VPS_HOST" "mkdir -p $DEPLOY_DIR/deployment/$dir_name"
-            scp -r "$file"/* "$VPS_HOST:$DEPLOY_DIR/deployment/$dir_name/"
-        fi
-    done
+    # Remove old deployment directory and recreate
+    ssh $SSH_OPTS "$VPS_HOST" "rm -rf $DEPLOY_DIR/deployment && mkdir -p $DEPLOY_DIR/deployment"
+    
+    # Copy all files in one batch to reduce SSH connections
+    log "Copying deployment files..."
+    scp $SSH_OPTS -r ./deployment/* "$VPS_HOST:$DEPLOY_DIR/deployment/"
 }
 
 # Deploy to VPS
@@ -131,8 +136,9 @@ deploy_to_vps() {
     
     log "Deploying with image tag: $IMAGE_TAG"
     
-    # Run deployment on VPS
-    ssh "$VPS_HOST" << EOF
+    # Run deployment on VPS with SSH multiplexing
+    SSH_OPTS="-o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
+    ssh $SSH_OPTS "$VPS_HOST" << EOF
         set -e
         cd $DEPLOY_DIR
         
@@ -171,7 +177,8 @@ EOF
 verify_deployment() {
     log "Verifying deployment..."
     
-    ssh "$VPS_HOST" << 'EOF'
+    SSH_OPTS="-o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
+    ssh $SSH_OPTS "$VPS_HOST" << 'EOF'
         cd /opt/msti-automation
         
         # Wait a bit for services to start
