@@ -32,6 +32,14 @@ ssh cisco@192.168.238.10 << 'EOF'
         sed -i 's/^[[:space:]]*//' .env  # Remove leading spaces
         sed -i 's/[[:space:]]*$//' .env  # Remove trailing spaces
         
+        # Fix DATABASE_URL quotes (remove surrounding quotes)
+        sed -i 's/^DATABASE_URL="\(.*\)"$/DATABASE_URL=\1/' .env
+        sed -i "s/^DATABASE_URL='\(.*\)'$/DATABASE_URL=\1/" .env
+        
+        # Fix other quoted values if needed
+        sed -i 's/^INFLUX_URL="\(.*\)"$/INFLUX_URL=\1/' .env
+        sed -i "s/^INFLUX_URL='\(.*\)'$/INFLUX_URL=\1/" .env
+        
         echo "--- Cleaned .env content ---"
         cat .env
         echo "--- End of cleaned content ---"

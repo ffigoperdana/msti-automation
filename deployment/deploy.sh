@@ -129,7 +129,7 @@ wait_for_environment_health() {
     
     log "Waiting for $env_name environment to be healthy..."
     
-    local services=("backend" "frontend" "webhook")
+    local services=("backend" "frontend")
     local healthy_count=0
     local elapsed=0
     
@@ -138,7 +138,10 @@ wait_for_environment_health() {
         
         for service in "${services[@]}"; do
             local container_name="msti-${service}-${env_name}"
-            local health=$(deployment/container-control.sh health-check "$container_name" 2>/dev/null || echo "unhealthy")
+            local health_output=$(deployment/container-control.sh health-check "$container_name" 2>/dev/null || echo "unhealthy")
+            
+            # Extract just the status from "Container ... status: STATUS" format
+            local health=$(echo "$health_output" | sed 's/.*status: //')
             
             case $health in
                 "healthy"|"running")
@@ -225,10 +228,11 @@ show_status() {
     
     echo "Health Status:"
     for env in blue green; do
-        for service in backend frontend webhook; do
+        for service in backend frontend; do
             local container_name="msti-${service}-${env}"
             if docker ps --filter "name=$container_name" --quiet | grep -q .; then
-                local health=$(deployment/container-control.sh health-check "$container_name" 2>/dev/null || echo "unknown")
+                local health_output=$(deployment/container-control.sh health-check "$container_name" 2>/dev/null || echo "unknown")
+                local health=$(echo "$health_output" | sed 's/.*status: //')
                 echo "  $container_name: $health"
             fi
         done

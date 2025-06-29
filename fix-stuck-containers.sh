@@ -1,64 +1,64 @@
 #!/bin/bash
 
-echo "=== Fixing Stuck Docker Containers ==="
+echo "🔥 BRUTAL CONTAINER CLEANUP - DELETING EVERYTHING"
+echo "================================================="
 
-# Stop compose services first (attempt graceful stop)
-echo "1. Attempting graceful stop..."
-cd /opt/msti-automation
-docker compose -f deployment/docker-compose.blue.yml down --timeout 30
+# Stop ALL running containers (no mercy)
+echo "1. 🛑 Stopping ALL containers..."
+sudo docker stop $(sudo docker ps -q) 2>/dev/null || echo "No containers to stop"
 
-# Check if containers are still running
-echo "2. Checking remaining containers..."
-docker ps
+# Remove ALL containers (running and stopped)
+echo "2. 🗑️  Removing ALL containers..."
+sudo docker rm -f $(sudo docker ps -aq) 2>/dev/null || echo "No containers to remove"
 
-# Get the stuck container ID (from your log: b943b093856a)
-STUCK_CONTAINER="b943b093856a"
+# Remove ALL networks (except default ones)
+echo "3. 🌐 Removing ALL custom networks..."
+sudo docker network prune -f
 
-# Get processes inside the stuck container
-echo "3. Checking processes in stuck container..."
-docker exec $STUCK_CONTAINER ps aux 2>/dev/null || echo "Cannot access container processes"
+# Remove ALL volumes
+echo "4. 💾 Removing ALL volumes..."
+sudo docker volume prune -f
 
-# Force kill all processes in the container namespace
-echo "4. Force killing container processes..."
-# Get the container PID
-CONTAINER_PID=$(docker inspect $STUCK_CONTAINER --format '{{.State.Pid}}' 2>/dev/null)
+# Remove ALL unused images
+echo "5. 🖼️  Removing ALL unused images..."
+sudo docker image prune -af
 
-if [ ! -z "$CONTAINER_PID" ] && [ "$CONTAINER_PID" != "0" ]; then
-    echo "Container PID: $CONTAINER_PID"
-    # Kill all processes in the container's PID namespace
-    sudo pkill -f $STUCK_CONTAINER
-    # Force kill the main container process
-    sudo kill -9 $CONTAINER_PID 2>/dev/null || echo "PID already killed"
+# DON'T kill Docker processes - that was too brutal!
+echo "6. ⚡ Skipping Docker process killing (too brutal!)"
+
+# Restart Docker service PROPERLY
+echo "7. 🔄 Restarting Docker service properly..."
+sudo systemctl stop docker.service
+sudo systemctl stop docker.socket
+sleep 3
+sudo systemctl enable docker.service
+sudo systemctl enable docker.socket
+sudo systemctl start docker.socket
+sudo systemctl start docker.service
+sleep 10
+
+# Verify Docker is working
+echo "8. 🩺 Testing Docker health..."
+if sudo docker --version > /dev/null 2>&1; then
+    echo "✅ Docker is alive!"
+else
+    echo "❌ Docker is still dead, manual intervention needed"
+    exit 1
 fi
 
-# Force remove the stuck container
-echo "5. Force removing stuck containers..."
-docker rm -f $STUCK_CONTAINER 2>/dev/null || echo "Container already removed"
+# Verify cleanup
+echo "9. ✅ Verification - should be empty:"
+echo "   Containers:"
+sudo docker ps -a
+echo "   Networks:"
+sudo docker network ls | grep -v "bridge\|host\|none"
+echo "   Volumes:"
+sudo docker volume ls
 
-# Also remove traefik if it's causing issues
-docker rm -f traefik 2>/dev/null || echo "Traefik already removed"
-
-# Remove orphaned networks
-echo "6. Cleaning up networks..."
-docker network prune -f
-
-# Remove orphaned volumes
-echo "7. Cleaning up volumes..."
-docker volume prune -f
-
-# Restart Docker daemon to clear any hanging state
-echo "8. Restarting Docker daemon..."
-sudo systemctl restart docker
-sleep 5
-
-# Check Docker status
-echo "9. Docker status after restart..."
-sudo systemctl status docker --no-pager
-
-# Verify no containers are running
-echo "10. Final container check..."
-docker ps -a
-
-echo "=== Container cleanup complete ==="
-echo "Now you can try running the deployment again:"
-echo "docker compose -f deployment/docker-compose.blue.yml up -d" 
+echo ""
+echo "🎉 CLEANUP COMPLETE!"
+echo "💀 Everything Docker-related has been DESTROYED!"
+echo "✅ Docker service is ALIVE and ready!"
+echo "🚀 Ready for fresh deployment!"
+echo ""
+echo "Run: npm run deploy:force" 

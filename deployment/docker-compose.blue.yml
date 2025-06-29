@@ -8,12 +8,14 @@ services:
     pull_policy: always
     ports:
       - "3001:3001"
+      - "3002:3002"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
       - INFLUX_URL=${INFLUX_URL}
       - INFLUX_TOKEN=${INFLUX_TOKEN}
       - PORT=3001
+      - WEBHOOK_PORT=3002
       - APPLY_MIGRATIONS=false
     networks:
       - msti-blue
@@ -52,29 +54,7 @@ services:
     depends_on:
       - backend-blue
 
-  webhook-blue:
-    image: ${DOCKER_USERNAME}/backend:${IMAGE_TAG}
-    container_name: msti-webhook-blue
-    restart: unless-stopped
-    pull_policy: always
-    ports:
-      - "3002:3002"
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=${DATABASE_URL}
-      - WEBHOOK_PORT=3002
-    networks:
-      - msti-blue
-    labels:
-      - "deployment.environment=blue"
-      - "deployment.version=${IMAGE_TAG}"
-      - "deployment.timestamp=${DEPLOYMENT_TIMESTAMP}"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+
 
 networks:
   msti-blue:
