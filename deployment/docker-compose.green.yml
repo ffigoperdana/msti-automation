@@ -7,8 +7,8 @@ services:
     restart: unless-stopped
     pull_policy: always
     ports:
-      - "3001:3001"  # Same port as blue - only one environment active at a time
-      - "3002:3002"  # Same port as blue - only one environment active at a time
+      - "3003:3001"  # Different external port for green environment
+      - "3004:3002"  # Different external port for green environment
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
@@ -36,7 +36,7 @@ services:
     restart: unless-stopped
     pull_policy: always
     environment:
-      - VITE_API_URL=http://192.168.238.10:3001/api
+      - VITE_API_URL=http://192.168.238.10:3003/api
       - NODE_ENV=production
     ports:
       - "5173:80"  # Different port from blue (5172)

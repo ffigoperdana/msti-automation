@@ -5,9 +5,9 @@ import LoginForm from '../components/auth/LoginForm';
 const Login: React.FC = () => {
   const [showServerForm, setShowServerForm] = useState(false);
 
-  const handleServerSubmit = (serverData: { address: string; port: string }) => {
-    localStorage.setItem('ip_host', serverData.address);
-    localStorage.setItem('port', serverData.port);
+  const handleServerSubmit = (serverAddress: string, serverPort: string) => {
+    localStorage.setItem('ip_host', serverAddress);
+    localStorage.setItem('port', serverPort);
     setShowServerForm(false);
   };
 

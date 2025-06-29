@@ -1,13 +1,39 @@
 import axios from 'axios';
+import { API_URL } from '../config';
+
+// Dynamic API URL configuration
+const getBaseURL = () => {
+  // Check localStorage for dynamic server configuration (updated at runtime)
+  const serverAddress = localStorage.getItem('ip_host');
+  const serverPort = localStorage.getItem('port');
+  
+  if (serverAddress && serverPort) {
+    return `http://${serverAddress}:${serverPort}/api`;
+  }
+  
+  // Fallback to config
+  return API_URL;
+};
 
 // Buat instance axios dengan konfigurasi default
 const api = axios.create({
-  baseURL: 'http://192.168.238.10:3001/api',
+  baseURL: getBaseURL(),
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 30000, // 30 detik
 });
+
+// Update baseURL when localStorage changes
+const updateBaseURL = () => {
+  api.defaults.baseURL = getBaseURL();
+};
+
+// Listen for storage changes
+window.addEventListener('storage', updateBaseURL);
+
+// Export function to manually update baseURL
+export const updateApiBaseURL = updateBaseURL;
 
 // Interceptor untuk request
 api.interceptors.request.use(

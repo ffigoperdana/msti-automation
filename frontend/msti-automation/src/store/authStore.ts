@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { updateApiBaseURL } from '../services/api';
 
 interface User {
   id: string;
@@ -42,6 +43,13 @@ const useAuthStore = create<AuthState>()(
           const data = await response.json();
 
           if (response.ok && data.success) {
+            // Save server configuration to localStorage
+            localStorage.setItem('ip_host', serverAddress);
+            localStorage.setItem('port', serverPort);
+            
+            // Update API base URL
+            updateApiBaseURL();
+            
             set({ 
               user: data.user, 
               isAuthenticated: true, 
@@ -82,6 +90,13 @@ const useAuthStore = create<AuthState>()(
         } catch (error) {
           console.error('Logout error:', error);
         } finally {
+          // Clear server configuration on logout
+          localStorage.removeItem('ip_host');
+          localStorage.removeItem('port');
+          
+          // Update API base URL to default
+          updateApiBaseURL();
+          
           set({ 
             user: null, 
             isAuthenticated: false, 
