@@ -5,7 +5,6 @@ RUN apk add --no-cache \
     bash \
     curl \
     netcat-openbsd \
-    dos2unix \
     tini
 
 # Create non-root user for security
@@ -28,8 +27,10 @@ RUN npx prisma generate
 
 # Copy entrypoint script and set permissions
 COPY entrypoint.sh .
-RUN dos2unix entrypoint.sh && \
-    chmod +x entrypoint.sh
+RUN apk add --no-cache dos2unix \
+    && dos2unix entrypoint.sh \
+    && chmod +x entrypoint.sh \
+    && ls -l entrypoint.sh
 
 # Copy the rest of the application
 COPY . .
@@ -52,6 +53,5 @@ EXPOSE 3001 3002
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:$PORT/health || exit 1
 
-# Use tini as init system to handle signals properly
-# Use exec form to ensure proper signal handling
-ENTRYPOINT ["/sbin/tini", "--", "/app/entrypoint.sh"]
+# Use simple entrypoint that works
+ENTRYPOINT ["sh", "./entrypoint.sh"]
