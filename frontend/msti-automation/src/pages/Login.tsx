@@ -17,7 +17,7 @@ const Login: React.FC = () => {
       <div className="w-1/2 bg-white p-12 flex flex-col justify-between">
         <div>
           <div className="h-8 w-auto mb-4">
-            <h1 className="text-2xl font-bold text-[#ca3f3b]">MSInsight</h1>
+            <h1 className="text-2xl font-bold text-[#ca3f3b]">MSTI</h1>
           </div>
           <p className="text-3xl font-bold mt-4">
             <span className="text-[#ca3f3b]">The Network</span>
@@ -27,7 +27,7 @@ const Login: React.FC = () => {
         <div className="flex-grow flex justify-center items-center">
           <div className="max-w-[70%] max-h-[70%] flex items-center justify-center">
             <div className="w-64 h-64 bg-gradient-to-br from-[#ca3f3b] to-[#31406e] rounded-full flex items-center justify-center">
-              <div className="text-white text-6xl font-bold">MSI</div>
+              <div className="text-white text-6xl font-bold">MSTI</div>
             </div>
           </div>
         </div>

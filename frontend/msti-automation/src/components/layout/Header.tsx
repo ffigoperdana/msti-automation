@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import useAuthStore from '../../store/authStore';
 
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
+  const [showDropdown, setShowDropdown] = useState(false);
+  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
   return (
     <header className="bg-white shadow-md">
       <div className="flex justify-between items-center px-6 py-4">
@@ -28,14 +38,37 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
           </button>
           
           <div className="relative">
-            <button className="flex items-center space-x-2">
+            <button 
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="flex items-center space-x-2 p-2 hover:bg-gray-100 rounded-md transition-colors"
+            >
               <img
                 className="h-8 w-8 rounded-full"
                 src="https://img.icons8.com/?size=100&id=nXduhA13SMUu&format=png&color=000000"
                 alt="User avatar"
               />
-              <span className="hidden md:inline-block">Admin User</span>
+              <span className="hidden md:inline-block">{user?.email || 'Admin User'}</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
             </button>
+
+            {showDropdown && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10">
+                <div className="py-1">
+                  <div className="px-4 py-2 text-sm text-gray-700 border-b">
+                    <div className="font-semibold">{user?.email}</div>
+                    <div className="text-xs text-gray-500">Role: {user?.role}</div>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
