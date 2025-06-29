@@ -96,8 +96,16 @@ get_latest_deployment() {
 sync_deployment_scripts() {
     log "Syncing deployment scripts to VPS..."
     
-    # Setup SSH connection multiplexing for faster transfers
-    SSH_OPTS="$SSH_KEY_OPTS -o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
+    # Setup SSH options (disable multiplexing on Windows to avoid connection issues)
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+        # Windows/Git Bash - disable multiplexing due to compatibility issues
+        SSH_OPTS="$SSH_KEY_OPTS -o ConnectTimeout=30"
+        log "🪟 Windows detected - using direct SSH connections"
+    else
+        # Linux/Mac - use multiplexing for performance
+        SSH_OPTS="$SSH_KEY_OPTS -o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
+        log "🐧 Unix detected - using SSH multiplexing"
+    fi
     
     # Ensure deployment directory exists
     ssh $SSH_OPTS "$VPS_HOST" "mkdir -p $DEPLOY_DIR"
@@ -128,8 +136,12 @@ sync_deployment_scripts() {
 
 # Fallback sync function using scp
 sync_with_scp() {
-    # Use SSH multiplexing for faster transfers
-    SSH_OPTS="$SSH_KEY_OPTS -o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
+    # Use appropriate SSH options based on OS
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+        SSH_OPTS="$SSH_KEY_OPTS -o ConnectTimeout=30"
+    else
+        SSH_OPTS="$SSH_KEY_OPTS -o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
+    fi
     
     # Remove old deployment directory and recreate
     ssh $SSH_OPTS "$VPS_HOST" "rm -rf $DEPLOY_DIR/deployment && mkdir -p $DEPLOY_DIR/deployment"
@@ -148,8 +160,12 @@ deploy_to_vps() {
     
     log "Deploying with image tag: $IMAGE_TAG"
     
-    # Run deployment on VPS with SSH multiplexing
-    SSH_OPTS="$SSH_KEY_OPTS -o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
+    # Run deployment on VPS with appropriate SSH options
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+        SSH_OPTS="$SSH_KEY_OPTS -o ConnectTimeout=30"
+    else
+        SSH_OPTS="$SSH_KEY_OPTS -o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
+    fi
     ssh $SSH_OPTS "$VPS_HOST" << EOF
         set -e
         cd $DEPLOY_DIR
@@ -189,7 +205,12 @@ EOF
 verify_deployment() {
     log "Verifying deployment..."
     
-    SSH_OPTS="$SSH_KEY_OPTS -o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
+    # Use appropriate SSH options based on OS
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+        SSH_OPTS="$SSH_KEY_OPTS -o ConnectTimeout=30"
+    else
+        SSH_OPTS="$SSH_KEY_OPTS -o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
+    fi
     ssh $SSH_OPTS "$VPS_HOST" << 'EOF'
         cd /opt/msti-automation
         
@@ -216,10 +237,21 @@ verify_deployment() {
 EOF
 }
 
+# Cleanup function
+cleanup_ssh() {
+    # Clean up any leftover SSH control sockets
+    if [[ "$OSTYPE" != "msys" && "$OSTYPE" != "cygwin" ]]; then
+        rm -f /tmp/ssh-*@192.168.238.10:22 2>/dev/null || true
+    fi
+}
+
 # Main execution
 main() {
     echo ""
     log "Starting deployment process..."
+    
+    # Cleanup any previous SSH sessions
+    cleanup_ssh
     
     # Step 1: Check VPS connection
     check_vps_connection
@@ -252,10 +284,13 @@ main() {
     verify_deployment
     
     success "🎉 Deployment completed successfully!"
+    
+    # Final cleanup
+    cleanup_ssh
 }
 
 # Handle interruption
-trap 'echo ""; error "Deployment interrupted!"; exit 1' INT
+trap 'echo ""; error "Deployment interrupted!"; cleanup_ssh; exit 1' INT
 
 # Handle arguments
 while [[ $# -gt 0 ]]; do

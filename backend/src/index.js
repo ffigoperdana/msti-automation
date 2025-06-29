@@ -4,7 +4,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { PrismaClient } from '@prisma/client';
 import swaggerUi from 'swagger-ui-express';
-import swaggerDocument from './swagger/swagger.json' assert { type: "json" }; // Swagger file for documentation
+import swaggerDocument from './swagger/swagger.json' with { type: "json" }; // Swagger file for documentation
 import websocketService from './services/websocketService.js';
 import app from './app.js';
 
@@ -113,18 +113,19 @@ app.get('/', (req, res) => {
   res.send('MSTI Backend Server is running');
 });
 
-// Initialize WebSocket
-websocketService.initialize(server);
-
 // Start server
 const PORT = process.env.PORT || 3001;
 
 server = createServer(app);
 
+// Initialize WebSocket AFTER server is created
+websocketService.initialize(server);
+
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔌 WebSocket server initialized`);
   
   // Print available routes
   console.log('\nAvailable Routes:');

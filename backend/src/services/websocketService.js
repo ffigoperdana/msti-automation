@@ -8,7 +8,14 @@ class WebSocketService {
   }
 
   initialize(server) {
-    this.wss = new WebSocketServer({ server });
+    if (!server) {
+      throw new Error('HTTP server is required for WebSocket initialization');
+    }
+    
+    this.wss = new WebSocketServer({ 
+      server: server,
+      perMessageDeflate: false // Disable compression for better performance
+    });
 
     this.wss.on('connection', (ws) => {
       console.log('New client connected');
