@@ -81,11 +81,11 @@ npm run fix:env            # Fix .env file format issues
 npm run fix:permissions    # Fix backend container permissions
 
 # SSH Setup & Testing
-npm run ssh:test           # Test SSH key authentication
+npm run ssh:test           # Test SSH key authentication (uses ~/.ssh/deploy_key)
 npm run ssh:setup          # Open SSH setup guide
 
 # Manual troubleshooting
-ssh cisco@192.168.238.10
+ssh -i ~/.ssh/deploy_key cisco@192.168.238.10
 cd /opt/msti-automation
 deployment/deploy.sh status
 deployment/container-control.sh status
@@ -131,7 +131,7 @@ npm run fix:containers
 
 Atau manual:
 ```bash
-ssh cisco@192.168.238.10
+ssh -i ~/.ssh/deploy_key cisco@192.168.238.10
 docker ps  # Check stuck containers
 docker exec CONTAINER_ID ps aux  # Check processes inside container
 sudo pkill -f CONTAINER_ID  # Kill processes
@@ -141,7 +141,7 @@ docker rm -f CONTAINER_ID  # Force remove
 ### Deployment Failures
 ```bash
 # Check logs
-ssh cisco@192.168.238.10
+ssh -i ~/.ssh/deploy_key cisco@192.168.238.10
 docker logs msti-backend-blue
 docker logs msti-frontend-blue
 
@@ -152,13 +152,32 @@ npm run deploy:rollback
 npm run deploy:force
 ```
 
+### SSH Connection Issues
+```bash
+# Test SSH key authentication
+npm run ssh:test
+
+# If fails, check key permissions
+chmod 600 ~/.ssh/deploy_key
+chmod 644 ~/.ssh/deploy_key.pub
+
+# Add key to SSH agent
+ssh-add ~/.ssh/deploy_key
+
+# Manual test with specific key
+ssh -i ~/.ssh/deploy_key cisco@192.168.238.10
+
+# Use different key temporarily
+SSH_KEY=~/.ssh/id_rsa npm run deploy
+```
+
 ### Environment Issues
 ```bash
 # Check which environment is active
 npm run deploy:status
 
 # Switch between environments manually
-ssh cisco@192.168.238.10
+ssh -i ~/.ssh/deploy_key cisco@192.168.238.10
 cd /opt/msti-automation
 deployment/deploy.sh rollback blue   # Switch to blue
 deployment/deploy.sh rollback green  # Switch to green
@@ -181,7 +200,7 @@ deployment/deploy.sh rollback green  # Switch to green
 ### Logs
 ```bash
 # Check application logs
-ssh cisco@192.168.238.10
+ssh -i ~/.ssh/deploy_key cisco@192.168.238.10
 docker logs -f msti-backend-blue
 docker logs -f msti-frontend-blue
 docker logs -f msti-webhook-blue
@@ -233,16 +252,42 @@ msti-automation/
 # Check deployment status
 npm run deploy:check
 
-# Deploy to VPS
+# Deploy to VPS (uses ~/.ssh/deploy_key by default)
 npm run deploy
+
+# Deploy with custom SSH key
+SSH_KEY=~/.ssh/my_key npm run deploy
 
 # Force redeploy (even if up-to-date)  
 npm run deploy:force
+
+# Test SSH connection
+npm run ssh:test
 
 # Manual script execution
 ./deploy-from-laptop.sh
 ./check-deploy.sh
 ```
+
+## 🔑 SSH Key Configuration
+
+The deployment system is configured to use `~/.ssh/deploy_key` by default:
+
+```bash
+# Generate deployment key
+ssh-keygen -t rsa -b 4096 -f ~/.ssh/deploy_key -C "deployment-key-$(whoami)"
+
+# Copy to VPS
+ssh-copy-id -i ~/.ssh/deploy_key.pub cisco@192.168.238.10
+
+# Test connection
+npm run ssh:test
+
+# Deploy (uses deploy_key automatically)
+npm run deploy
+```
+
+For detailed SSH setup instructions, see: `npm run ssh:setup`
 
 ## 📁 Project Structure
 
@@ -259,7 +304,10 @@ msti-automation/
 ## 🔧 Prerequisites
 
 1. **VPN Connection** to VPS (192.168.238.10)
-2. **SSH Access** to `cisco@192.168.238.10`
+2. **SSH Key Authentication** to `cisco@192.168.238.10`
+   - Default: `~/.ssh/deploy_key` 
+   - Override: `SSH_KEY=~/.ssh/your_key npm run deploy`
+   - Setup guide: `npm run ssh:setup`
 3. **Git** with deployment tags access
 4. **Docker Hub** credentials configured in GitHub
 

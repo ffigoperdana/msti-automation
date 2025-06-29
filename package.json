@@ -11,7 +11,7 @@
     "fix:containers": "scp fix-stuck-containers.sh cisco@192.168.238.10:/tmp/ && ssh cisco@192.168.238.10 'chmod +x /tmp/fix-stuck-containers.sh && /tmp/fix-stuck-containers.sh'",
     "fix:env": "bash fix-env-file.sh",
     "fix:permissions": "bash fix-backend-permissions.sh",
-    "ssh:test": "ssh -o BatchMode=yes -o PasswordAuthentication=no cisco@192.168.238.10 'echo SSH key authentication working!'",
+    "ssh:test": "ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o PasswordAuthentication=no cisco@192.168.238.10 \"echo 'SSH key authentication working!'\"",
     "ssh:setup": "echo 'See SSH_SETUP.md for detailed instructions' && start SSH_SETUP.md"
   },
   "keywords": [
