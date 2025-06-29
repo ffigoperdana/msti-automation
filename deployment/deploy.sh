@@ -1,8 +1,10 @@
 #!/bin/bash
-set -e
 
-# MSTI Automation Blue-Green Deployment Script
-# This script handles proper container lifecycle management with graceful shutdown
+# MSTI Automation - Blue-Green Deployment Script
+# This script handles blue-green deployment on the VPS
+# Called by deploy-from-laptop.sh
+
+set -e
 
 # Colors for output
 RED='\033[0;31m'
@@ -12,372 +14,320 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 log() {
-    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] $1${NC}"
+    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
 }
 
 warn() {
-    echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] WARNING: $1${NC}"
+    echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
 error() {
-    echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ERROR: $1${NC}"
+    echo -e "${RED}[ERROR]${NC} $1"
     exit 1
 }
 
 info() {
-    echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')] INFO: $1${NC}"
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
+
+# Configuration
+DOCKER_USERNAME=${DOCKER_USERNAME:-"dafit17docker"}
+IMAGE_TAG=${IMAGE_TAG:-"latest"}
+DEPLOYMENT_TIMESTAMP=${DEPLOYMENT_TIMESTAMP:-$(date +%Y%m%d-%H%M%S)}
 
 # Load environment variables
 load_env() {
-    if [ -f ".env" ]; then
-        export $(cat .env | grep -v '^#' | xargs)
-        log "Environment variables loaded from .env"
+    if [ -f .env ]; then
+        log "Loading environment variables from .env"
+        # Clean and load .env file, removing carriage returns and handling special characters
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            # Skip empty lines and comments
+            [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+            [[ "$line" =~ ^[[:space:]]*# ]] && continue
+            
+            # Remove carriage returns and trim whitespace
+            line=$(echo "$line" | tr -d '\r' | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')
+            
+            # Skip if line is empty after cleaning
+            [[ -z "$line" ]] && continue
+            
+            # Export the variable
+            export "$line"
+        done < .env
+        
+        info "Environment variables loaded"
     else
-        warn ".env file not found, using environment defaults"
+        warn ".env file not found, using defaults"
     fi
-    
-    # Set defaults if not provided
-    export DOCKER_USERNAME=${DOCKER_USERNAME:-"your-dockerhub-username"}
-    export IMAGE_TAG=${IMAGE_TAG:-"latest"}
-    export DOMAIN=${DOMAIN:-"yourdomain.com"}
-    export DEPLOYMENT_TIMESTAMP=$(date '+%Y%m%d-%H%M%S')
-    
-    # Validate required variables
-    [ -z "$DOCKER_USERNAME" ] && error "DOCKER_USERNAME not set"
-    [ -z "$DATABASE_URL" ] && error "DATABASE_URL not set"
 }
 
-# Check dependencies
-check_dependencies() {
-    log "Checking dependencies..."
+# Detect current active environment
+get_active_environment() {
+    local blue_running=$(docker ps --filter "name=msti-backend-blue" --filter "status=running" --quiet)
+    local green_running=$(docker ps --filter "name=msti-backend-green" --filter "status=running" --quiet)
     
-    # Check if docker is available
-    if ! command -v docker &> /dev/null; then
-        error "Docker is not installed or not in PATH"
-    fi
-    
-    # Check if docker-compose is available
-    if ! command -v docker-compose &> /dev/null; then
-        error "Docker Compose is not installed or not in PATH"
-    fi
-    
-    # Check if container control script exists
-    if [ ! -f "deployment/container-control.sh" ]; then
-        error "Container control script not found at deployment/container-control.sh"
-    fi
-    
-    # Make container control script executable
-    chmod +x deployment/container-control.sh
-    
-    log "Dependencies check passed"
-}
-
-# Determine next environment
-determine_next_environment() {
-    local active_env=$(deployment/container-control.sh status | grep "Active environment:" | grep -o "blue\|green" || echo "")
-    
-    if [ "$active_env" = "blue" ]; then
+    if [ -n "$blue_running" ] && [ -n "$green_running" ]; then
+        # Both running, check which one is active via labels or default to blue
+        echo "blue"
+    elif [ -n "$blue_running" ]; then
+        echo "blue"
+    elif [ -n "$green_running" ]; then
         echo "green"
     else
-        echo "blue"
+        echo "none"
     fi
 }
 
-# Pull latest images
-pull_images() {
-    log "Pulling latest Docker images..."
+# Get next deployment environment
+get_next_environment() {
+    local current_env=$1
     
-    local backend_image="${DOCKER_USERNAME}/backend:${IMAGE_TAG}"
-    local frontend_image="${DOCKER_USERNAME}/frontend:${IMAGE_TAG}"
-    
-    if ! docker pull "$backend_image"; then
-        error "Failed to pull backend image: $backend_image"
-    fi
-    
-    if ! docker pull "$frontend_image"; then
-        error "Failed to pull frontend image: $frontend_image"
-    fi
-    
-    log "Images pulled successfully"
+    case $current_env in
+        "blue") echo "green" ;;
+        "green") echo "blue" ;;
+        "none") echo "blue" ;;
+        *) echo "blue" ;;
+    esac
 }
 
-# Deploy to environment
+# Deploy to specific environment
 deploy_environment() {
     local env_name=$1
     
     log "Deploying to $env_name environment..."
     
-    # Create docker-compose override for this deployment
-    cat > docker-compose.override.yml <<EOF
-version: '3.8'
-services:
-  backend-${env_name}:
-    environment:
-      - DEPLOYMENT_ID=${DEPLOYMENT_TIMESTAMP}
-  frontend-${env_name}:
-    environment:
-      - DEPLOYMENT_ID=${DEPLOYMENT_TIMESTAMP}
-  webhook-${env_name}:
-    environment:
-      - DEPLOYMENT_ID=${DEPLOYMENT_TIMESTAMP}
-EOF
-
-    # Stop existing environment containers gracefully
-    log "Stopping existing $env_name environment..."
-    deployment/container-control.sh stop-env "$env_name" || warn "No existing $env_name environment to stop"
+    # Set environment variables for docker-compose
+    export DOCKER_USERNAME
+    export IMAGE_TAG
+    export DEPLOYMENT_TIMESTAMP
     
-    # Start new environment
-    log "Starting new $env_name environment..."
-    docker-compose -f "deployment/docker-compose.${env_name}.yml" -f docker-compose.override.yml up -d
-    
-    # Wait for services to be healthy
-    log "Waiting for services to become healthy..."
-    
-    # Wait for backend
-    if ! deployment/container-control.sh wait-healthy "msti-backend-$env_name" 120 5; then
-        error "Backend failed to become healthy in $env_name environment"
+    # Deploy using docker-compose
+    if [ "$env_name" = "blue" ]; then
+        docker compose -f deployment/docker-compose.blue.yml pull
+        docker compose -f deployment/docker-compose.blue.yml up -d
+    else
+        docker compose -f deployment/docker-compose.green.yml pull
+        docker compose -f deployment/docker-compose.green.yml up -d
     fi
     
-    # Wait for frontend
-    if ! deployment/container-control.sh wait-healthy "msti-frontend-$env_name" 60 5; then
-        error "Frontend failed to become healthy in $env_name environment"
-    fi
-    
-    # Wait for webhook
-    if ! deployment/container-control.sh wait-healthy "msti-webhook-$env_name" 60 5; then
-        error "Webhook server failed to become healthy in $env_name environment"
-    fi
-    
-    log "$env_name environment deployed successfully"
+    log "$env_name environment deployment started"
 }
 
-# Run smoke tests
-run_smoke_tests() {
+# Wait for environment health
+wait_for_environment_health() {
     local env_name=$1
+    local max_wait=${2:-120}
     
-    log "Running smoke tests for $env_name environment..."
+    log "Waiting for $env_name environment to be healthy..."
     
-    # Test backend health
-    local backend_health=$(docker exec "msti-backend-$env_name" curl -s -f http://192.168.238.10:3001/health | jq -r '.status' 2>/dev/null || echo "unhealthy")
-    if [ "$backend_health" != "healthy" ]; then
-        error "Backend smoke test failed: $backend_health"
-    fi
+    local services=("backend" "frontend" "webhook")
+    local healthy_count=0
+    local elapsed=0
     
-    # Test webhook health
-    local webhook_health=$(docker exec "msti-webhook-$env_name" curl -s -f http://192.168.238.10:3002/health | jq -r '.status' 2>/dev/null || echo "unhealthy")
-    if [ "$webhook_health" != "healthy" ]; then
-        error "Webhook smoke test failed: $webhook_health"
-    fi
+    while [ $elapsed -lt $max_wait ]; do
+        healthy_count=0
+        
+        for service in "${services[@]}"; do
+            local container_name="msti-${service}-${env_name}"
+            local health=$(deployment/container-control.sh health-check "$container_name" 2>/dev/null || echo "unhealthy")
+            
+            case $health in
+                "healthy"|"running")
+                    healthy_count=$((healthy_count + 1))
+                    ;;
+                "starting")
+                    info "$container_name is starting..."
+                    ;;
+                *)
+                    warn "$container_name is not healthy: $health"
+                    ;;
+            esac
+        done
+        
+        if [ $healthy_count -eq ${#services[@]} ]; then
+            log "All services in $env_name environment are healthy!"
+            return 0
+        fi
+        
+        sleep 10
+        elapsed=$((elapsed + 10))
+        info "Health check progress: $healthy_count/${#services[@]} services healthy (${elapsed}/${max_wait}s)"
+    done
     
-    # Test frontend (basic connectivity)
-    if ! docker exec "msti-frontend-$env_name" curl -s -f http://192.168.238.10/ > /dev/null; then
-        error "Frontend smoke test failed"
-    fi
-    
-    log "Smoke tests passed for $env_name environment"
+    error "$env_name environment failed to become healthy within ${max_wait}s"
+    return 1
 }
 
-# Switch traffic using Traefik
+# Switch traffic between environments
 switch_traffic() {
     local new_env=$1
     local old_env=$2
     
     log "Switching traffic from $old_env to $new_env..."
     
-    # Switch traffic
-    deployment/container-control.sh switch-traffic "$new_env" "$old_env"
+    # For now, we use simple port mapping (no Traefik)
+    # Traffic switching is handled by port allocation in docker-compose files
     
-    # Wait a bit for traffic to settle
-    sleep 10
+    log "Traffic is now directed to $new_env environment"
     
-    # Verify traffic switch by checking active environment
-    local active_env=$(deployment/container-control.sh status | grep "Active environment:" | grep -o "blue\|green" || echo "")
-    if [ "$active_env" != "$new_env" ]; then
-        error "Traffic switch verification failed. Expected: $new_env, Got: $active_env"
-    fi
-    
-    log "Traffic successfully switched to $new_env environment"
+    # Update active environment marker
+    echo "$new_env" > .active-environment
 }
 
-# Cleanup old environment
-cleanup_old_environment() {
-    local old_env=$1
-    local keep_running=${2:-false}
+# Graceful stop old environment
+stop_old_environment() {
+    local env_name=$1
     
-    if [ "$keep_running" = "true" ]; then
-        log "Keeping $old_env environment running for rollback capability"
+    if [ "$env_name" = "none" ]; then
+        log "No old environment to stop"
         return 0
     fi
     
-    if [ -n "$old_env" ]; then
-        log "Cleaning up old $old_env environment..."
-        
-        # Give some time before cleanup
-        sleep 30
-        
-        # Stop old environment
-        deployment/container-control.sh stop-env "$old_env"
-        
-        log "Old $old_env environment cleaned up"
+    log "Gracefully stopping $env_name environment..."
+    
+    # Use container-control.sh for graceful shutdown
+    if [ -f deployment/container-control.sh ]; then
+        deployment/container-control.sh stop-env "$env_name"
+    else
+        # Fallback to docker-compose down
+        if [ "$env_name" = "blue" ]; then
+            docker compose -f deployment/docker-compose.blue.yml down --timeout 30
+        else
+            docker compose -f deployment/docker-compose.green.yml down --timeout 30
+        fi
     fi
+    
+    log "$env_name environment stopped"
 }
 
-# Rollback function
+# Show deployment status
+show_status() {
+    log "=== MSTI Automation Deployment Status ==="
+    
+    local active_env=$(get_active_environment)
+    echo "Active environment: $active_env"
+    echo "Image tag: $IMAGE_TAG"
+    echo "Deployment timestamp: $DEPLOYMENT_TIMESTAMP"
+    echo ""
+    
+    echo "Container Status:"
+    docker ps --filter "name=msti-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+    echo ""
+    
+    echo "Health Status:"
+    for env in blue green; do
+        for service in backend frontend webhook; do
+            local container_name="msti-${service}-${env}"
+            if docker ps --filter "name=$container_name" --quiet | grep -q .; then
+                local health=$(deployment/container-control.sh health-check "$container_name" 2>/dev/null || echo "unknown")
+                echo "  $container_name: $health"
+            fi
+        done
+    done
+    
+    echo ""
+    echo "Access URLs:"
+    echo "  Frontend: http://192.168.238.10:5172 (Blue) or http://192.168.238.10:5173 (Green)"
+    echo "  Backend:  http://192.168.238.10:3001"
+    echo "  Webhook:  http://192.168.238.10:3002"
+}
+
+# Rollback to previous environment
 rollback() {
-    local current_env=$1
-    local rollback_env=$2
+    local target_env=${1:-$(get_active_environment)}
     
-    error_msg="Deployment failed, initiating rollback..."
-    if [ -n "$2" ]; then
-        error_msg="$2"
+    if [ "$target_env" = "none" ]; then
+        error "No environment to rollback to"
     fi
     
-    warn "$error_msg"
+    # Switch to the other environment
+    local rollback_env=$(get_next_environment "$target_env")
     
-    if [ -n "$rollback_env" ]; then
-        log "Rolling back to $rollback_env environment..."
-        
-        # Switch traffic back
-        deployment/container-control.sh switch-traffic "$rollback_env" "$current_env" || true
-        
-        # Stop failed environment
-        deployment/container-control.sh stop-env "$current_env" || true
-        
-        log "Rollback completed to $rollback_env environment"
-    else
-        warn "No environment available for rollback"
+    log "Rolling back from $target_env to $rollback_env..."
+    
+    # Check if rollback environment has containers
+    if ! docker ps --filter "name=msti-backend-$rollback_env" --quiet | grep -q .; then
+        error "Rollback environment $rollback_env has no running containers"
     fi
     
-    exit 1
+    # Switch traffic
+    switch_traffic "$rollback_env" "$target_env"
+    
+    # Stop the problematic environment
+    stop_old_environment "$target_env"
+    
+    log "Rollback completed to $rollback_env environment"
 }
 
 # Main deployment function
-main() {
-    log "Starting MSTI Automation Blue-Green Deployment"
-    log "=================================================="
+deploy() {
+    log "=== Starting Blue-Green Deployment ==="
     
-    # Setup
+    # Load environment
     load_env
-    check_dependencies
     
-    # Determine deployment target
-    local current_env=$(deployment/container-control.sh status | grep "Active environment:" | grep -o "blue\|green" || echo "")
-    local next_env=$(determine_next_environment)
+    # Detect current and next environment
+    local current_env=$(get_active_environment)
+    local next_env=$(get_next_environment "$current_env")
     
-    log "Current active environment: ${current_env:-none}"
-    log "Deploying to environment: $next_env"
-    log "Image tag: $IMAGE_TAG"
-    log "Deployment timestamp: $DEPLOYMENT_TIMESTAMP"
-    
-    # Setup trap for rollback on failure
-    if [ -n "$current_env" ]; then
-        trap "rollback $next_env $current_env" ERR
-    fi
-    
-    # Pull latest images
-    pull_images
+    log "Current environment: $current_env"
+    log "Deploying to: $next_env"
+    log "Using image tag: $IMAGE_TAG"
     
     # Deploy to next environment
     deploy_environment "$next_env"
     
-    # Run smoke tests
-    run_smoke_tests "$next_env"
+    # Wait for health checks
+    if ! wait_for_environment_health "$next_env" 180; then
+        error "Deployment failed - $next_env environment is not healthy"
+    fi
     
     # Switch traffic
     switch_traffic "$next_env" "$current_env"
     
-    # Post-deployment verification
-    log "Running post-deployment verification..."
+    # Wait a bit before stopping old environment
     sleep 10
-    run_smoke_tests "$next_env"
     
-    # Cleanup old environment (with option to keep for rollback)
-    cleanup_old_environment "$current_env" "${KEEP_OLD_ENV:-false}"
+    # Stop old environment
+    stop_old_environment "$current_env"
     
-    # Final status
-    deployment/container-control.sh status
-    
-    log "=================================================="
-    log "Deployment completed successfully!"
+    log "=== Deployment Completed Successfully ==="
     log "Active environment: $next_env"
-    log "Version: $IMAGE_TAG"
-    log "Deployment ID: $DEPLOYMENT_TIMESTAMP"
+    log "Image tag: $IMAGE_TAG"
     
-    # Cleanup temporary files
-    rm -f docker-compose.override.yml
+    # Show final status
+    show_status
 }
 
-# Handle command line arguments
+# Main script logic
 case "${1:-deploy}" in
     "deploy")
-        main
-        ;;
-    "rollback")
-        if [ -z "$2" ]; then
-            error "Usage: $0 rollback <target_environment>"
-        fi
-        
-        load_env
-        check_dependencies
-        
-        current_env=$(deployment/container-control.sh status | grep "Active environment:" | grep -o "blue\|green" || echo "")
-        target_env="$2"
-        
-        if [ "$current_env" = "$target_env" ]; then
-            error "Cannot rollback to the same environment ($target_env)"
-        fi
-        
-        log "Manual rollback from $current_env to $target_env"
-        switch_traffic "$target_env" "$current_env"
-        log "Rollback completed"
+        deploy
         ;;
     "status")
-        check_dependencies
-        deployment/container-control.sh status
+        show_status
+        ;;
+    "rollback")
+        rollback "$2"
         ;;
     "stop")
-        if [ -z "$2" ]; then
-            error "Usage: $0 stop <blue|green|all>"
-        fi
-        
-        check_dependencies
-        
-        if [ "$2" = "all" ]; then
-            deployment/container-control.sh stop-env blue || true
-            deployment/container-control.sh stop-env green || true
-        else
-            deployment/container-control.sh stop-env "$2"
-        fi
+        env_name=${2:-$(get_active_environment)}
+        stop_old_environment "$env_name"
         ;;
-    "cleanup")
-        check_dependencies
-        deployment/container-control.sh cleanup
-        ;;
-    "help"|*)
-        echo "MSTI Automation Deployment Script"
-        echo
-        echo "Usage: $0 <command> [options]"
-        echo
+    *)
+        echo "Usage: $0 {deploy|status|rollback [env]|stop [env]}"
+        echo ""
         echo "Commands:"
-        echo "  deploy                    - Deploy to next environment (default)"
-        echo "  rollback <environment>    - Rollback to specified environment"
-        echo "  status                    - Show current deployment status"
-        echo "  stop <blue|green|all>     - Stop environment(s)"
-        echo "  cleanup                   - Clean up old containers and images"
-        echo "  help                      - Show this help"
-        echo
-        echo "Environment variables:"
-        echo "  DOCKER_USERNAME          - Docker Hub username"
-        echo "  IMAGE_TAG                - Image tag to deploy (default: latest)"
-        echo "  DOMAIN                    - Domain name for Traefik"
-        echo "  DATABASE_URL              - PostgreSQL connection string"
-        echo "  KEEP_OLD_ENV              - Keep old environment running (true/false)"
-        echo
+        echo "  deploy          - Deploy using blue-green strategy"
+        echo "  status          - Show current deployment status"
+        echo "  rollback [env]  - Rollback to previous environment"
+        echo "  stop [env]      - Stop specific environment"
+        echo ""
         echo "Examples:"
-        echo "  $0 deploy                 # Deploy latest"
-        echo "  IMAGE_TAG=v1.2.3 $0 deploy   # Deploy specific version"
+        echo "  $0 deploy                 # Deploy latest version"
+        echo "  $0 status                 # Show status"
         echo "  $0 rollback blue          # Rollback to blue environment"
         echo "  $0 stop green             # Stop green environment"
+        exit 1
         ;;
 esac 

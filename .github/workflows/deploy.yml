@@ -1,4 +1,4 @@
-name: Build Images for MSTI Automation
+name: Build and Push Images - MSTI Automation
 
 on:
   push:
@@ -177,15 +177,22 @@ jobs:
           SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
           DEPLOY_TAG="deploy-$(date +%Y%m%d-%H%M%S)-${SHORT_SHA}"
           
-          echo "🚀 DEPLOYMENT READY!"
+          echo "🚀 IMAGES READY FOR DEPLOYMENT!"
+          echo "================================"
           echo ""
-          echo "✅ Images have been built and pushed to Docker Hub:"
-          echo "   • Backend: ${{ env.DOCKER_USERNAME }}/backend:${SHORT_SHA}"
-          echo "   • Frontend: ${{ env.DOCKER_USERNAME }}/frontend:${SHORT_SHA}"
+          echo "✅ Docker images have been built and pushed to Docker Hub:"
+          if [ "${{ needs.build-backend.result }}" = "success" ]; then
+            echo "   🐳 Backend:  ${{ env.DOCKER_USERNAME }}/backend:latest"
+            echo "   🐳 Backend:  ${{ env.DOCKER_USERNAME }}/backend:${SHORT_SHA}"
+          fi
+          if [ "${{ needs.build-frontend.result }}" = "success" ]; then
+            echo "   🐳 Frontend: ${{ env.DOCKER_USERNAME }}/frontend:latest"
+            echo "   🐳 Frontend: ${{ env.DOCKER_USERNAME }}/frontend:${SHORT_SHA}"
+          fi
           echo ""
           echo "📦 Deployment tag created: ${DEPLOY_TAG}"
           echo ""
-          echo "🖥️  To deploy from your laptop:"
+          echo "🖥️  TO DEPLOY FROM YOUR LAPTOP:"
           echo "   npm run deploy"
           echo ""
           echo "   Or manually:"
@@ -194,6 +201,10 @@ jobs:
           echo "📊 Check deployment status:"
           echo "   ./check-deploy.sh"
           echo ""
+          echo "🛠️  If containers are stuck:"
+          echo "   ./fix-stuck-containers.sh"
+          echo ""
           echo "🌐 VPS URLs (after deployment):"
-          echo "   • Frontend: http://192.168.238.10:5172 or :5173"
+          echo "   • Frontend: http://192.168.238.10:5172 (Blue) or :5173 (Green)"
           echo "   • Backend:  http://192.168.238.10:3001"
+          echo "   • Webhook:  http://192.168.238.10:3002"

@@ -5,105 +5,78 @@ services:
     image: ${DOCKER_USERNAME}/backend:${IMAGE_TAG}
     container_name: msti-backend-green
     restart: unless-stopped
-    stop_grace_period: 30s
-    stop_signal: SIGTERM
+    pull_policy: always
+    ports:
+      - "3001:3001"  # Same port as blue - only one environment active at a time
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
       - INFLUX_URL=${INFLUX_URL}
       - INFLUX_TOKEN=${INFLUX_TOKEN}
-      - APPLY_MIGRATIONS=false
       - PORT=3001
-      - WEBHOOK_PORT=3002
-      - ENVIRONMENT=green
-    volumes:
-      - ./ansible-config:/app/ansible-config:ro
+      - APPLY_MIGRATIONS=false
     networks:
-      - traefik-public
       - msti-green
     labels:
-      - "traefik.enable=false"  # Will be enabled when active
-      - "traefik.docker.network=traefik-public"
-      - "traefik.http.routers.backend-green.rule=PathPrefix(`/api`)"
-      - "traefik.http.services.backend-green.loadbalancer.server.port=3001"
-      - "traefik.http.services.backend-green.loadbalancer.healthcheck.path=/health"
-      - "traefik.http.services.backend-green.loadbalancer.healthcheck.interval=10s"
-      - "traefik.http.services.backend-green.loadbalancer.healthcheck.timeout=5s"
       - "deployment.environment=green"
       - "deployment.version=${IMAGE_TAG}"
       - "deployment.timestamp=${DEPLOYMENT_TIMESTAMP}"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://192.168.238.10:3001/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
-    depends_on:
-      - postgres
 
   frontend-green:
     image: ${DOCKER_USERNAME}/frontend:${IMAGE_TAG}
     container_name: msti-frontend-green
     restart: unless-stopped
-    stop_grace_period: 10s
-    stop_signal: SIGTERM
+    pull_policy: always
     environment:
-      - ENVIRONMENT=green
+      - VITE_API_URL=http://192.168.238.10:3001/api
+      - NODE_ENV=production
     ports:
-      - "5173:80"  # Different port for green environment
+      - "5173:80"  # Different port from blue (5172)
     networks:
-      - traefik-public
+      - msti-green
     labels:
-      - "traefik.enable=false"  # Will be enabled when active
-      - "traefik.docker.network=traefik-public"
-      - "traefik.http.routers.frontend-green.rule=PathPrefix(`/`)"
-      - "traefik.http.services.frontend-green.loadbalancer.server.port=80"
       - "deployment.environment=green"
       - "deployment.version=${IMAGE_TAG}"
       - "deployment.timestamp=${DEPLOYMENT_TIMESTAMP}"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://192.168.238.10"]
+      test: ["CMD", "curl", "-f", "http://localhost"]
       interval: 30s
       timeout: 10s
       retries: 3
+    depends_on:
+      - backend-green
 
   webhook-green:
     image: ${DOCKER_USERNAME}/backend:${IMAGE_TAG}
     container_name: msti-webhook-green
     restart: unless-stopped
-    stop_grace_period: 30s
-    stop_signal: SIGTERM
-    command: ["/sbin/tini", "--", "node", "src/webhook_server.js"]
+    pull_policy: always
+    ports:
+      - "3002:3002"  # Same port as blue - only one environment active at a time
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
       - WEBHOOK_PORT=3002
-      - ENVIRONMENT=green
     networks:
-      - traefik-public
       - msti-green
     labels:
-      - "traefik.enable=false"  # Will be enabled when active
-      - "traefik.docker.network=traefik-public"
-      - "traefik.http.routers.webhook-green.rule=PathPrefix(`/webhook`)"
-      - "traefik.http.services.webhook-green.loadbalancer.server.port=3002"
-      - "traefik.http.services.webhook-green.loadbalancer.healthcheck.path=/health"
-      - "traefik.http.services.webhook-green.loadbalancer.healthcheck.interval=10s"
       - "deployment.environment=green"
       - "deployment.version=${IMAGE_TAG}"
       - "deployment.timestamp=${DEPLOYMENT_TIMESTAMP}"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://192.168.238.10:3002/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-    depends_on:
-      - postgres
 
 networks:
-  traefik-public:
-    external: true
   msti-green:
     driver: bridge
     name: msti-green 

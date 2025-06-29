@@ -80,16 +80,46 @@ sync_deployment_scripts() {
     # Ensure deployment directory exists
     ssh "$VPS_HOST" "mkdir -p $DEPLOY_DIR"
     
-    # Sync deployment folder
-    rsync -avz --delete \
-        --exclude='.git' \
-        --exclude='node_modules' \
-        ./deployment/ "$VPS_HOST:$DEPLOY_DIR/deployment/"
+    # Check if rsync is available, otherwise use scp
+    if command -v rsync > /dev/null 2>&1; then
+        log "Using rsync for faster sync..."
+        if rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            ./deployment/ "$VPS_HOST:$DEPLOY_DIR/deployment/"; then
+            success "✅ rsync completed successfully"
+        else
+            warning "rsync failed, falling back to scp..."
+            sync_with_scp
+        fi
+    else
+        log "rsync not found, using scp for deployment sync..."
+        sync_with_scp
+    fi
     
     # Sync git repo (for deployment tags)
     ssh "$VPS_HOST" "cd $DEPLOY_DIR && git fetch --tags" || true
     
     success "✅ Deployment scripts synced"
+}
+
+# Fallback sync function using scp
+sync_with_scp() {
+    # Remove old deployment directory and recreate
+    ssh "$VPS_HOST" "rm -rf $DEPLOY_DIR/deployment && mkdir -p $DEPLOY_DIR/deployment"
+    
+    # Copy each file in deployment directory
+    for file in ./deployment/*; do
+        if [ -f "$file" ]; then
+            log "Copying $(basename "$file")..."
+            scp "$file" "$VPS_HOST:$DEPLOY_DIR/deployment/"
+        elif [ -d "$file" ]; then
+            dir_name=$(basename "$file")
+            log "Copying directory $dir_name/..."
+            ssh "$VPS_HOST" "mkdir -p $DEPLOY_DIR/deployment/$dir_name"
+            scp -r "$file"/* "$VPS_HOST:$DEPLOY_DIR/deployment/$dir_name/"
+        fi
+    done
 }
 
 # Deploy to VPS

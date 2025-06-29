@@ -1,17 +1,22 @@
 {
   "name": "msti-automation",
   "version": "1.0.0",
-  "description": "MSTI Automation - Manual deployment from laptop to VPS",
+  "description": "MSTI Automation - Manual deployment from laptop to VPS with Blue-Green strategy",
   "scripts": {
     "deploy": "bash deploy-from-laptop.sh",
     "deploy:check": "bash check-deploy.sh",
-    "deploy:force": "bash deploy-from-laptop.sh --force"
+    "deploy:force": "bash deploy-from-laptop.sh --force",
+    "deploy:status": "ssh cisco@192.168.238.10 'cd /opt/msti-automation && deployment/deploy.sh status'",
+    "deploy:rollback": "ssh cisco@192.168.238.10 'cd /opt/msti-automation && deployment/deploy.sh rollback'",
+    "fix:containers": "scp fix-stuck-containers.sh cisco@192.168.238.10:/tmp/ && ssh cisco@192.168.238.10 'chmod +x /tmp/fix-stuck-containers.sh && /tmp/fix-stuck-containers.sh'"
   },
   "keywords": [
     "deployment",
     "automation",
     "vps",
-    "docker"
+    "docker",
+    "blue-green",
+    "monitoring"
   ],
   "author": "MSTI Automation",
   "license": "MIT"
