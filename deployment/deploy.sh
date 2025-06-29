@@ -51,8 +51,17 @@ load_env() {
             # Skip if line is empty after cleaning
             [[ -z "$line" ]] && continue
             
-            # Export the variable
-            export "$line"
+            # Check if line contains = and is valid format
+            if [[ "$line" =~ ^[a-zA-Z_][a-zA-Z0-9_]*= ]]; then
+                # Remove any existing 'export ' prefix to avoid double export
+                line=$(echo "$line" | sed 's/^export //')
+                
+                # Export the variable
+                export "$line"
+                info "Loaded: $(echo "$line" | cut -d'=' -f1)"
+            else
+                warn "Skipping invalid line: $line"
+            fi
         done < .env
         
         info "Environment variables loaded"

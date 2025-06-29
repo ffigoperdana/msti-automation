@@ -8,7 +8,9 @@
     "deploy:force": "bash deploy-from-laptop.sh --force",
     "deploy:status": "ssh cisco@192.168.238.10 'cd /opt/msti-automation && deployment/deploy.sh status'",
     "deploy:rollback": "ssh cisco@192.168.238.10 'cd /opt/msti-automation && deployment/deploy.sh rollback'",
-    "fix:containers": "scp fix-stuck-containers.sh cisco@192.168.238.10:/tmp/ && ssh cisco@192.168.238.10 'chmod +x /tmp/fix-stuck-containers.sh && /tmp/fix-stuck-containers.sh'"
+    "fix:containers": "scp fix-stuck-containers.sh cisco@192.168.238.10:/tmp/ && ssh cisco@192.168.238.10 'chmod +x /tmp/fix-stuck-containers.sh && /tmp/fix-stuck-containers.sh'",
+    "fix:env": "bash fix-env-file.sh",
+    "fix:permissions": "bash fix-backend-permissions.sh"
   },
   "keywords": [
     "deployment",
