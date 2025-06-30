@@ -45,6 +45,9 @@ class AuthController {
         role: user.role
       };
 
+      console.log('Login success - Session ID:', req.sessionID);
+      console.log('Login success - Session data:', req.session);
+
       res.json({
         success: true,
         message: 'Login berhasil',
@@ -93,6 +96,10 @@ class AuthController {
   // Check session endpoint
   async checkSession(req, res) {
     try {
+      console.log('Session check - Session ID:', req.sessionID);
+      console.log('Session check - Session data:', req.session);
+      console.log('Session check - Cookies:', req.headers.cookie);
+      
       if (req.session.user) {
         res.json({
           success: true,

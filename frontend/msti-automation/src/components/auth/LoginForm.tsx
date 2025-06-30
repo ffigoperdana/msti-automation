@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../../store/authStore';
 import ErrorModal from './ErrorModal';
 
@@ -12,7 +13,8 @@ interface SavedServer {
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onSubmitServer }) => {
-  const { login, isLoading } = useAuthStore();
+  const { login, checkSession, isLoading } = useAuthStore();
+  const navigate = useNavigate();
   
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -82,9 +84,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmitServer }) => {
         setModalContent(getErrorContent('success'));
         setShowModal(true);
 
-        // Redirect after a short delay
-        setTimeout(() => {
-          window.location.href = '/dashboard';
+        // Wait a bit then check session and navigate
+        setTimeout(async () => {
+          await checkSession(); // Ensure session is properly loaded
+          navigate('/dashboard', { replace: true });
         }, 1500);
       }
     } catch (error: any) {
