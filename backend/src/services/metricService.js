@@ -76,8 +76,6 @@ class MetricService {
     try {
       const { bucket, measurement, field, aggregateWindow } = queryConfig;
 
-      console.log('Executing Flux query with config:', queryConfig);
-
       // Buat query Flux dengan format yang benar untuk timeRange
       const query = `
         from(bucket: "${bucket}")
@@ -91,11 +89,8 @@ class MetricService {
           )
       `;
 
-      console.log('Generated Flux query:', query);
-
       // Execute query
       const result = await this.runQuery(queryApi, query);
-      console.log('Query result:', result);
       return result;
     } catch (error) {
       console.error('Error executing query:', error);
@@ -215,7 +210,7 @@ class MetricService {
 
   async executeFluxQuery(queryApi, query, variables = {}) {
     try {
-      // Pastikan format time range yang benar
+      // Default time range jika tidak ada dalam variables
       const timeRange = variables.timeRange || {
         from: '-1h', // Default 1 jam ke belakang
         to: 'now()'
@@ -223,8 +218,6 @@ class MetricService {
 
       // Ganti placeholder time range jika ada
       const queryWithTimeRange = query.replace(/start: now\(\) - 1h/, `start: ${timeRange.from}`);
-
-      console.log('Executing Flux query:', queryWithTimeRange);
 
       // Execute query
       const rawResult = await this.runQuery(queryApi, queryWithTimeRange);
@@ -236,11 +229,34 @@ class MetricService {
         };
       }
 
-      // Format response sesuai dengan yang diharapkan frontend
-      const formattedResult = {
-        state: "Done",
-        series: [{
-          name: "Interface Status",
+      // Group data by measurement and field for better organization
+      const groupedData = this.groupDataByMeasurement(rawResult);
+
+      // Format response generically (tidak hardcode untuk interface status)
+      const series = Object.entries(groupedData).map(([key, rows]) => {
+        const [measurement, field] = key.split('::');
+        
+        // Extract field name and type information
+        const fieldName = field || '_value';
+        const sampleValue = rows[0]?._value;
+        
+        // Determine field type based on the data
+        let fieldType = 'number';
+        let fieldValues = rows.map(row => row._value);
+        
+        // Check if values are strings (like interface status)
+        if (typeof sampleValue === 'string') {
+          // Keep as string for interface status or other string fields
+          fieldType = 'string';
+          fieldValues = rows.map(row => row._value);
+        } else if (typeof sampleValue === 'number') {
+          // Keep as number for numeric fields (like gauge, memory usage, etc.)
+          fieldType = 'number';
+          fieldValues = rows.map(row => Number(row._value) || 0);
+        }
+
+        return {
+          name: measurement || "Query Result",
           refId: "A",
           meta: {
             executedQueryString: queryWithTimeRange
@@ -249,28 +265,31 @@ class MetricService {
             {
               name: "Time",
               type: "time",
-              values: rawResult.map(row => new Date(row._time).getTime()),
+              values: rows.map(row => new Date(row._time).getTime()),
               config: {
                 unit: "time"
               }
             },
             {
-              name: "Value",
-              type: "number",
-              values: rawResult.map(row => typeof row._value === 'string' ? 
-                row._value === 'up' ? 1 : 0 : 
-                row._value
-              ),
+              name: fieldName,
+              type: fieldType,
+              values: fieldValues,
+              labels: this.extractLabels(rows[0]),
               config: {
-                unit: "status"
+                unit: fieldType === 'string' ? 'status' : (fieldName.includes('percent') || fieldName.includes('usage') ? 'percent' : 'none')
               }
             }
           ],
-          length: rawResult.length
-        }]
+          length: rows.length
+        };
+      });
+
+      const result = {
+        state: "Done",
+        series
       };
 
-      return formattedResult;
+      return result;
     } catch (error) {
       console.error('Error executing Flux query:', error);
       throw error;

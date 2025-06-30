@@ -36,10 +36,34 @@ const TimeSeries = ({ data, options }: TimeSeriesProps) => {
     const series: any[] = [];
     const allTimestamps = new Set<string>();
     
+    // Safety check: ensure data exists and is not null/undefined
+    if (!data || typeof data !== 'object') {
+      console.warn('TimeSeries component: data is null or undefined');
+      return;
+    }
+    
     // Collect all timestamps first
     Object.entries(data).forEach(([, queryResult]) => {
+      // Safety check: ensure queryResult exists and has series
+      if (!queryResult || !queryResult.series || !Array.isArray(queryResult.series)) {
+        console.warn('TimeSeries component: queryResult or series is null/undefined', queryResult);
+        return;
+      }
+      
       queryResult.series.forEach(serie => {
+        // Safety check: ensure serie exists and has data
+        if (!serie || !serie.data || !Array.isArray(serie.data)) {
+          console.warn('TimeSeries component: serie or serie.data is null/undefined', serie);
+          return;
+        }
+        
         serie.data.forEach(point => {
+          // Safety check: ensure point exists and has time property
+          if (!point || !point.time) {
+            console.warn('TimeSeries component: point or point.time is null/undefined', point);
+            return;
+          }
+          
           allTimestamps.add(point.time);
         });
       });
@@ -50,10 +74,28 @@ const TimeSeries = ({ data, options }: TimeSeriesProps) => {
     
     // Create series for each query result
     Object.entries(data).forEach(([refId, queryResult]) => {
+      // Safety check: ensure queryResult exists and has series
+      if (!queryResult || !queryResult.series || !Array.isArray(queryResult.series)) {
+        console.warn('TimeSeries component: queryResult or series is null/undefined in second loop', queryResult);
+        return;
+      }
+      
       queryResult.series.forEach(serie => {
+        // Safety check: ensure serie exists and has data
+        if (!serie || !serie.data || !Array.isArray(serie.data)) {
+          console.warn('TimeSeries component: serie or serie.data is null/undefined in second loop', serie);
+          return;
+        }
+        
         // Map data to timestamps
         const dataMap = new Map<string, number>();
         serie.data.forEach(point => {
+          // Safety check: ensure point exists and has required properties
+          if (!point || !point.time || point.value === undefined) {
+            console.warn('TimeSeries component: point, point.time, or point.value is null/undefined in second loop', point);
+            return;
+          }
+          
           dataMap.set(point.time, point.value);
         });
         

@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@amcharts/amcharts5": "^5.13.3",
     "@faker-js/faker": "^9.3.1",
     "apexcharts": "^3.54.0",
     "axios": "^1.6.7",

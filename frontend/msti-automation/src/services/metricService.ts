@@ -246,14 +246,10 @@ class MetricService {
   // Validasi dan preview query Flux
   async validateQuery(params: FluxQueryParams): Promise<FluxQueryResponse> {
     try {
-      console.log('Validating Flux query:', params);
-      
       const response = await api.post<FluxQueryResponse>(
         API_ENDPOINTS.DATA_SOURCE_QUERY(params.dataSourceId),
         { query: params.query }
       );
-
-      console.log('Query validation response:', response.data);
       
       if (!response.data || !response.data.series) {
         throw new Error('Invalid response format from server');
@@ -309,17 +305,10 @@ class MetricService {
     }
   }
 
-  async getMetrics(dataSourceId?: string) {
+  async getMetrics(dataSourceId: string) {
     try {
-      if (dataSourceId) {
-        const response = await api.get('/visualizations/metrics', {
-          params: { dataSourceId }
-        });
-        return response.data;
-      } else {
-        const response = await api.get(API_ENDPOINTS.DATA_SOURCES + '/metrics');
-        return response.data;
-      }
+      const response = await api.get(`/api/visualizations/metrics?dataSourceId=${dataSourceId}`);
+      return response.data;
     } catch (error) {
       console.error('Error fetching metrics:', error);
       throw error;
