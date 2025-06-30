@@ -20,7 +20,7 @@ const Login: React.FC = () => {
             <h1 className="text-2xl font-bold text-[#ca3f3b]">MSTI</h1>
           </div>
           <p className="text-3xl font-bold mt-4">
-            <span className="text-[#ca3f3b]">The Network</span>
+            <span className="text-[#ca3f3b]">The Network Automation</span>
             <span className="text-[#31406e]"> in your Hand!</span>
           </p>
         </div>
