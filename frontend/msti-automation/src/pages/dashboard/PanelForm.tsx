@@ -15,7 +15,7 @@ interface DataSource {
 interface PanelData {
   title: string;
   description: string;
-  type: 'timeseries' | 'interface-status';
+  type: '' | 'interface-status' | 'memory-usage' | 'timeseries';
   dataSourceId?: string;
   queryText?: string;
   options: {
@@ -42,10 +42,10 @@ interface PanelData {
 const DEFAULT_PANEL: PanelData = {
   title: '',
   description: '',
-  type: 'timeseries',
+  type: '',
   options: {
-    measurement: 'interface_status',
-    field: 'status',
+    measurement: '',
+    field: '',
     unit: '',
     decimals: 2,
   },
@@ -82,8 +82,8 @@ const PanelForm: React.FC = () => {
             dataSourceId: panel.queries?.[0]?.dataSourceId,
             queryText: panel.queries?.[0]?.query,
             options: {
-              measurement: panel.options?.measurement || 'interface_status',
-              field: panel.options?.field || 'status',
+              measurement: panel.options?.measurement || '',
+              field: panel.options?.field || '',
               unit: panel.options?.unit || '',
               decimals: panel.options?.decimals || 2,
             },
@@ -206,6 +206,8 @@ const PanelForm: React.FC = () => {
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
                 required
                 >
+                <option value="">Pilih Tipe Visualisasi</option>
+                <option value="memory-usage">Memory Usage</option>
                 <option value="timeseries">Time Series</option>
                 <option value="interface-status">Interface Status</option>
               </select>
@@ -249,14 +251,17 @@ const PanelForm: React.FC = () => {
                 rows={4}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono"
                 placeholder={`from(bucket: "telegraf")
-  |> range(start: -5m)
-  |> filter(fn: (r) => r._measurement == "interface_status")
-  |> filter(fn: (r) => r._field == "status")`}
-              required
+                      |> range(start: duration(v: -6h))
+                      |> filter(fn: (r) => r._measurement == "interface_status")
+                      |> filter(fn: (r) => r._field == "status")
+                      |> filter(fn: (r) => r["source"] == "source_name")
+                      |> aggregateWindow(every: 10s, fn: last, createEmpty: false)
+                      |> yield(name: "last")`}
+                required
               />
             </div>
 
-            {panelData.type === 'interface-status' && (
+            {(panelData.type === 'interface-status') && (
               <div className="space-y-4">
                 <div>
                   <label htmlFor="options.measurement" className="block text-sm font-medium text-gray-700">
@@ -266,25 +271,58 @@ const PanelForm: React.FC = () => {
                     type="text"
                     id="options.measurement"
                     name="options.measurement"
-                    value={panelData.options.measurement}
+                    value={panelData.options.measurement || 'interface_status'}
                     onChange={handleOptionsChange}
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
                     placeholder="interface_status"
                   />
-          </div>
+                </div>
           
                 <div>
                   <label htmlFor="options.field" className="block text-sm font-medium text-gray-700">
                     Field
                   </label>
-            <input
+                  <input
                     type="text"
                     id="options.field"
                     name="options.field"
-                    value={panelData.options.field}
+                    value={panelData.options.field || 'status'}
                     onChange={handleOptionsChange}
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
                     placeholder="status"
+                  />
+                </div>
+              </div>
+            )}
+            {(panelData.type === 'memory-usage') && (
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="options.measurement" className="block text-sm font-medium text-gray-700">
+                    Measurement
+                  </label>
+                  <input
+                    type="text"
+                    id="options.measurement"
+                    name="options.measurement"
+                    value={panelData.options.measurement || 'memory_usage'}
+                    onChange={handleOptionsChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                    placeholder="memory_usage"
+                  />
+                </div>
+          
+                <div>
+                  <label htmlFor="options.field" className="block text-sm font-medium text-gray-700">
+                    Field
+                  </label>
+                  <input
+                    type="text"
+                    id="options.field"
+                    name="options.field"
+                    value={panelData.options.field || 'average'}
+                    onChange={handleOptionsChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                    placeholder="average"
                   />
                 </div>
               </div>
@@ -301,7 +339,7 @@ const PanelForm: React.FC = () => {
         <div className="flex justify-end space-x-3">
           <button
             type="button"
-            onClick={() => navigate(`/dashboard/${dashboardId}`)}
+            onClick={() => navigate(`/dashboard/view/${dashboardId}`)}
             className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
           >
             Batal

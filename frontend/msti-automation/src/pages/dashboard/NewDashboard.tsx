@@ -167,6 +167,15 @@ from(bucket: "${selectedDataSource}")
   |> last()`;
       setQueryText(newQuery);
     }
+  // Penambahan sementara untuk panel timeseries
+    else if (selectedPanel === 'timeseries') {
+      const newQuery = `from(bucket: "${selectedDataSource}")
+  |> range(start: ${timeRange.from}, stop: ${timeRange.to})
+  |> filter(fn: (r) => r["_measurement"] == "${metric}")
+  |> aggregateWindow(every: 10s, fn: mean)
+  |> yield(name: "mean")`;
+      setQueryText(newQuery);
+    }
   }, [selectedPanel, selectedInterface, timeRange]);
 
   // Fungsi untuk mengambil data dari API
@@ -427,7 +436,7 @@ from(bucket: "${selectedDataSource}")
 
   // Render tabs
   const renderTabs = () => (
-    <div className="border-b border-gray-200">
+    <div className="border-b border-gray-200 ml-6">
       <nav className="-mb-px flex space-x-8" aria-label="Tabs">
         <button
           onClick={() => setActiveTab('panel')}

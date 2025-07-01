@@ -4,7 +4,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { PrismaClient } from '@prisma/client';
 import swaggerUi from 'swagger-ui-express';
-import swaggerDocument from './swagger/swagger.json' assert { type: "json" }; // Swagger file for documentation
+import swaggerDocument from './swagger/swagger.json' with { type: "json" }; // Swagger file for documentation
 import websocketService from './services/websocketService.js';
 import app from './app.js';
 
