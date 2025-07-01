@@ -506,7 +506,7 @@ export const executePanelQuery = async (req, res) => {
 
       const queryApi = influxDB.getQueryApi(query.dataSource.organization);
 
-      // Execute query
+      // Execute raw query first
       const rows = await new Promise((resolve, reject) => {
         const data = [];
         queryApi.queryRows(query.query, {
@@ -523,55 +523,81 @@ export const executePanelQuery = async (req, res) => {
         });
       });
 
-      // Format hasil untuk interface status panel
-      const formattedResult = {
-        state: "Done",
-        series: [{
-          name: "Interface Status",
-          refId: query.refId,
-          meta: {
-            executedQueryString: query.query
-          },
-          fields: [
-            {
-              name: "Time",
-              type: "time",
-              values: rows.map(row => new Date(row._time).getTime()),
-              config: {
-                unit: "time"
-              }
+      // Format based on panel type
+      if (panel.type === 'interface-status' || panel.type === 'interface') {
+        // Interface panels need UP/DOWN status conversion
+        const formattedResult = {
+          state: "Done",
+          series: [{
+            name: "Interface Status",
+            refId: query.refId,
+            meta: {
+              executedQueryString: query.query
             },
-            {
-              name: "Value",
-              type: "string",
-              values: rows.map(row => {
-                // Jika _value adalah string, gunakan langsung
-                if (typeof row._value === 'string') {
-                  return row._value.toUpperCase();
+            fields: [
+              {
+                name: "Time",
+                type: "time",
+                values: rows.map(row => new Date(row._time).getTime()),
+                config: {
+                  unit: "time"
                 }
-                // Jika _value adalah number, konversi ke UP/DOWN
-                if (typeof row._value === 'number') {
-                  return row._value === 1 ? 'UP' : 'DOWN';
+              },
+              {
+                name: "Value",
+                type: "string",
+                values: rows.map(row => {
+                  // Konversi untuk interface status
+                  if (typeof row._value === 'string') {
+                    return row._value.toUpperCase();
+                  }
+                  if (typeof row._value === 'number') {
+                    return row._value === 1 ? 'UP' : 'DOWN';
+                  }
+                  if (row.operSt) {
+                    return row.operSt.toUpperCase();
+                  }
+                  return 'UNKNOWN';
+                }),
+                config: {
+                  unit: "status"
                 }
-                // Jika operSt ada, gunakan itu
-                if (row.operSt) {
-                  return row.operSt.toUpperCase();
-                }
-                return 'UNKNOWN';
-              }),
-              config: {
-                unit: "status"
               }
-            }
-          ],
-          length: rows.length
-        }]
-      };
+            ],
+            length: rows.length
+          }]
+        };
 
-      return {
-        refId: query.refId,
-        result: formattedResult
-      };
+        return {
+          refId: query.refId,
+          result: formattedResult
+        };
+      } else if (panel.type === 'chord-diagram') {
+        // Chord diagram needs source and destination data preserved
+        try {
+          const result = await metricService.executeFluxQuery(queryApi, query.query);
+
+          // Ensure data structure is preserved for chord diagram processing
+          return {
+            refId: query.refId,
+            result: result
+          };
+        } catch (queryError) {
+          throw queryError;
+        }
+      } else {
+        // For gauge, memory-usage, and other numeric panels - use generic logic
+        try {
+          const result = await metricService.executeFluxQuery(queryApi, query.query);
+
+          return {
+            refId: query.refId,
+            result: result
+          };
+        } catch (queryError) {
+          throw queryError;
+        }
+      }
     }));
 
     res.json(results);
@@ -662,8 +688,6 @@ export const validateQuery = async (req, res) => {
         .replace(/stop: now\(\)/, `stop: ${timeRange.to}`);
     }
 
-    console.log('Executing modified query:', modifiedQuery);
-
     const result = await new Promise((resolve, reject) => {
       const rows = [];
       queryApi.queryRows(modifiedQuery, {
@@ -747,52 +771,13 @@ export const validateFluxQuery = async (req, res) => {
     const queryApi = client.getQueryApi(dataSource.organization);
 
     try {
-      // Eksekusi query untuk mendapatkan status interface
-      const result = await new Promise((resolve, reject) => {
-        const rows = [];
-        queryApi.queryRows(query, {
-          next(row, tableMeta) {
-            const o = tableMeta.toObject(row);
-            rows.push(o);
-          },
-          error(error) {
-            reject(error);
-          },
-          complete() {
-            resolve(rows);
-          },
-        });
+      // Use the same generic executeFluxQuery logic instead of hardcoded interface status
+      const result = await metricService.executeFluxQuery(queryApi, query);
+      
+      res.json({
+        valid: true,
+        data: result
       });
-
-      // Format hasil untuk interface status
-      if (result.length > 0) {
-        const lastValue = result[result.length - 1];
-        const status = lastValue._value;
-        const formattedStatus = typeof status === 'string' 
-          ? status.toUpperCase() 
-          : (status === 1 ? 'UP' : 'DOWN');
-
-        res.json({
-          valid: true,
-          data: {
-            status: formattedStatus,
-            time: lastValue._time,
-            metadata: {
-              interface: lastValue.dn,
-              source: lastValue.source
-            }
-          }
-        });
-      } else {
-        res.json({
-          valid: true,
-          data: {
-            status: 'UNKNOWN',
-            time: new Date().toISOString(),
-            metadata: {}
-          }
-        });
-      }
     } catch (queryError) {
       // Jika ada error syntax atau eksekusi
       console.error('Query execution error:', queryError);

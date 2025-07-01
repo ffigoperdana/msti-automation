@@ -1,0 +1,210 @@
+name: Build and Push Images - MSTI Automation
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+    inputs:
+      force_build:
+        description: 'Force build all images'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend-changed: ${{ steps.changes.outputs.backend }}
+      frontend-changed: ${{ steps.changes.outputs.frontend }}
+      should-build: ${{ steps.changes.outputs.backend == 'true' || steps.changes.outputs.frontend == 'true' || github.event.inputs.force_build == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changes
+        id: changes
+        run: |
+          if git diff --name-only HEAD~1 HEAD | grep -q "^backend/" || [ "${{ github.event.inputs.force_build }}" = "true" ]; then
+            echo "backend=true" >> $GITHUB_OUTPUT
+          else
+            echo "backend=false" >> $GITHUB_OUTPUT
+          fi
+          
+          if git diff --name-only HEAD~1 HEAD | grep -q "^frontend/" || [ "${{ github.event.inputs.force_build }}" = "true" ]; then
+            echo "frontend=true" >> $GITHUB_OUTPUT
+          else
+            echo "frontend=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-backend:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend-changed == 'true'
+    outputs:
+      image-tag: ${{ steps.tags.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_HUB_TOKEN }}
+
+      - name: Generate image tags
+        id: tags
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          
+          TAGS="${{ env.DOCKER_USERNAME }}/backend:latest"
+          TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/backend:${SHORT_SHA}"
+          TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/backend:${TIMESTAMP}"
+          
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "image_tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Backend build completed
+        run: |
+          echo "✅ Backend image built and pushed successfully!"
+          echo "🐳 Image: ${{ env.DOCKER_USERNAME }}/backend:${{ steps.tags.outputs.image_tag }}"
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend-changed == 'true'
+    outputs:
+      image-tag: ${{ steps.tags.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_HUB_TOKEN }}
+
+      - name: Generate image tags
+        id: tags
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          
+          TAGS="${{ env.DOCKER_USERNAME }}/frontend:latest"
+          TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/frontend:${SHORT_SHA}"
+          TAGS="$TAGS,${{ env.DOCKER_USERNAME }}/frontend:${TIMESTAMP}"
+          
+          echo "tags=$TAGS" >> $GITHUB_OUTPUT
+          echo "image_tag=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend/msti-automation
+          file: ./frontend/msti-automation/Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Frontend build completed
+        run: |
+          echo "✅ Frontend image built and pushed successfully!"
+          echo "🐳 Image: ${{ env.DOCKER_USERNAME }}/frontend:${{ steps.tags.outputs.image_tag }}"
+
+  create-deployment-tag:
+    runs-on: ubuntu-latest
+    needs: [detect-changes, build-backend, build-frontend]
+    if: |
+      always() && 
+      needs.detect-changes.outputs.should-build == 'true' &&
+      (needs.build-backend.result == 'success' || needs.build-backend.result == 'skipped') &&
+      (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped') &&
+      (github.ref_name == 'main' || github.ref_name == 'master')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create deployment tag
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          DEPLOY_TAG="deploy-${TIMESTAMP}-${SHORT_SHA}"
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          git tag "$DEPLOY_TAG"
+          git push origin "$DEPLOY_TAG"
+          
+          echo "✅ Created deployment tag: $DEPLOY_TAG"
+
+      - name: Deployment ready notification
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          DEPLOY_TAG="deploy-$(date +%Y%m%d-%H%M%S)-${SHORT_SHA}"
+          
+          echo "🚀 IMAGES READY FOR DEPLOYMENT!"
+          echo "================================"
+          echo ""
+          echo "✅ Docker images have been built and pushed to Docker Hub:"
+          if [ "${{ needs.build-backend.result }}" = "success" ]; then
+            echo "   🐳 Backend:  ${{ env.DOCKER_USERNAME }}/backend:latest"
+            echo "   🐳 Backend:  ${{ env.DOCKER_USERNAME }}/backend:${SHORT_SHA}"
+          fi
+          if [ "${{ needs.build-frontend.result }}" = "success" ]; then
+            echo "   🐳 Frontend: ${{ env.DOCKER_USERNAME }}/frontend:latest"
+            echo "   🐳 Frontend: ${{ env.DOCKER_USERNAME }}/frontend:${SHORT_SHA}"
+          fi
+          echo ""
+          echo "📦 Deployment tag created: ${DEPLOY_TAG}"
+          echo ""
+          echo "🖥️  TO DEPLOY FROM YOUR LAPTOP:"
+          echo "   npm run deploy"
+          echo ""
+          echo "   Or manually:"
+          echo "   ./deploy-from-laptop.sh"
+          echo ""
+          echo "📊 Check deployment status:"
+          echo "   ./check-deploy.sh"
+          echo ""
+          echo "🛠️  If containers are stuck:"
+          echo "   ./fix-stuck-containers.sh"
+          echo ""
+          echo "🌐 VPS URLs (after deployment):"
+          echo "   • Frontend: http://192.168.238.10:5172 (Blue) or :5173 (Green)"
+          echo "   • Backend:  http://192.168.238.10:3001"
+          echo "   • Webhook:  http://192.168.238.10:3002"

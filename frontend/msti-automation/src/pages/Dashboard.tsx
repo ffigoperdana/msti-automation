@@ -1,29 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import Gauge from '../components/visualizations/Gauge';
 import { useParams, Link } from 'react-router-dom';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-} from 'chart.js';
 import metricService from '../services/metricService';
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend
-);
+import VisualizationPanel from '../components/VisualizationPanel';
 
 interface Panel {
   id: string;
@@ -539,41 +518,28 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Grid Layout untuk Panel */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Panels Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
         {dashboard.panels.map((panel) => {
           switch (panel.type) {
             case 'interface-status':
               return (
-                <InterfaceStatusPanel
-                  key={panel.id}
-                  panel={panel}
-                  dashboardId={dashboard.id}
-                  onDelete={() => handleDeletePanel(panel.id)}
-                />
-              );
-            case 'memory-usage':
-              return (
-                <MemoryUsagePanel
-                  key={panel.id}
-                  panel={panel}
-                  dashboardId={dashboard.id}
-                  onDelete={() => handleDeletePanel(panel.id)}
-                />
+                <div key={panel.id} className="min-h-[280px]">
+                  <InterfaceStatusPanel
+                    panel={panel}
+                    dashboardId={dashboard.id}
+                    onDelete={() => handleDeletePanel(panel.id)}
+                  />
+                </div>
               );
             default:
               return (
-                <div key={panel.id} className="bg-white p-4 rounded-lg shadow-sm">
-                  <PanelMenu
-                    id={panel.id}
+                <div key={panel.id} className="min-h-[280px]">
+                  <VisualizationPanel
+                    panel={panel}
                     dashboardId={dashboard.id}
-                    panelType={panel.type}
                     onDelete={() => handleDeletePanel(panel.id)}
                   />
-                  <div className="flex justify-between items-start mb-2">
-                  <div className="text-gray-500">Unsupported panel type: {panel.type}</div>
-
-                  </div>
                 </div>
               );
           }

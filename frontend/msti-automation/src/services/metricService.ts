@@ -1,6 +1,6 @@
-import axios from 'axios';
 import { FluxQueryResponse, FluxQueryParams } from '../types/flux';
-import { API_URL, API_ENDPOINTS } from '../config';
+import { API_ENDPOINTS } from '../config';
+import api from './api';
 
 export interface QueryConfig {
   measurement: string;
@@ -28,15 +28,12 @@ export interface QueryResult {
   }>;
 }
 
-
-
-
 class MetricService {
 
   async getDataSourceMetrics(dataSourceId: string) {
     try {
       console.log('Fetching metrics for data source:', dataSourceId);
-      const response = await axios.get(`${API_URL}${API_ENDPOINTS.DATA_SOURCE_METRICS(dataSourceId)}`);
+      const response = await api.get(API_ENDPOINTS.DATA_SOURCE_METRICS(dataSourceId));
       console.log('Metrics response:', response.data);
       return response.data;
     } catch (error) {
@@ -73,7 +70,7 @@ class MetricService {
 
   async executeFluxQuery(dataSourceId: string, rawQuery: string, variables: Record<string, any> = {}) {
     try {
-      const response = await axios.post(`${API_URL}/visualizations/flux-query`, {
+      const response = await api.post('/visualizations/flux-query', {
         dataSourceId,
         query: rawQuery,
         variables
@@ -88,7 +85,7 @@ class MetricService {
   // Panel methods
   async getPanel(id: string) {
     try {
-      const response = await axios.get(`${API_URL}/visualizations/panels/${id}`);
+      const response = await api.get(`/visualizations/panels/${id}`);
       return response.data;
     } catch (error) {
       console.error('Error getting panel:', error);
@@ -98,7 +95,7 @@ class MetricService {
 
   async createPanel(dashboardId: string, data: any) {
     try {
-      const response = await axios.post(`${API_URL}/visualizations/dashboards/${dashboardId}/panels`, data);
+      const response = await api.post(`/visualizations/dashboards/${dashboardId}/panels`, data);
       return response.data;
     } catch (error) {
       console.error('Error creating panel:', error);
@@ -108,7 +105,7 @@ class MetricService {
 
   async updatePanel(id: string, data: any) {
     try {
-      const response = await axios.put(`${API_URL}/visualizations/panels/${id}`, data);
+      const response = await api.put(`/visualizations/panels/${id}`, data);
       return response.data;
     } catch (error) {
       console.error('Error updating panel:', error);
@@ -118,7 +115,7 @@ class MetricService {
 
   async deletePanel(id: string) {
     try {
-      await axios.delete(`${API_URL}/visualizations/panels/${id}`);
+      await api.delete(`/visualizations/panels/${id}`);
     } catch (error) {
       console.error('Error deleting panel:', error);
       throw error;
@@ -127,7 +124,7 @@ class MetricService {
 
   async executePanelQuery(id: string) {
     try {
-      const response = await axios.post(`${API_URL}/visualizations/panels/${id}/query`);
+      const response = await api.post(`/visualizations/panels/${id}/query`);
       return response.data;
     } catch (error) {
       console.error('Error executing panel query:', error);
@@ -138,7 +135,7 @@ class MetricService {
   // Dashboard methods
   async getDashboard(id: string) {
     try {
-      const response = await axios.get(`${API_URL}${API_ENDPOINTS.DASHBOARDS}/${id}`);
+      const response = await api.get(`${API_ENDPOINTS.DASHBOARDS}/${id}`);
       return response.data;
     } catch (error) {
       console.error('Error getting dashboard:', error);
@@ -148,7 +145,7 @@ class MetricService {
 
   async getDashboards() {
     try {
-      const response = await axios.get(`${API_URL}${API_ENDPOINTS.DASHBOARDS}`);
+      const response = await api.get(API_ENDPOINTS.DASHBOARDS);
       return response.data;
     } catch (error) {
       console.error('Error getting dashboards:', error);
@@ -158,7 +155,7 @@ class MetricService {
 
   async createDashboard(data: any) {
     try {
-      const response = await axios.post(`${API_URL}${API_ENDPOINTS.DASHBOARDS}`, data);
+      const response = await api.post(API_ENDPOINTS.DASHBOARDS, data);
       return response.data;
     } catch (error) {
       console.error('Error creating dashboard:', error);
@@ -168,7 +165,7 @@ class MetricService {
 
   async updateDashboard(id: string, data: any) {
     try {
-      const response = await axios.put(`${API_URL}${API_ENDPOINTS.DASHBOARDS}/${id}`, data);
+      const response = await api.put(`${API_ENDPOINTS.DASHBOARDS}/${id}`, data);
       return response.data;
     } catch (error) {
       console.error('Error updating dashboard:', error);
@@ -178,7 +175,7 @@ class MetricService {
 
   async deleteDashboard(id: string) {
     try {
-      await axios.delete(`${API_URL}${API_ENDPOINTS.DASHBOARDS}/${id}`);
+      await api.delete(`${API_ENDPOINTS.DASHBOARDS}/${id}`);
     } catch (error) {
       console.error('Error deleting dashboard:', error);
       throw error;
@@ -188,7 +185,7 @@ class MetricService {
   // Source methods
   async getSources() {
     try {
-      const response = await axios.get(`${API_URL}${API_ENDPOINTS.DATA_SOURCES}`);
+      const response = await api.get(API_ENDPOINTS.DATA_SOURCES);
       return response.data;
     } catch (error) {
       console.error('Error fetching sources:', error);
@@ -198,7 +195,7 @@ class MetricService {
 
   async getSource(id: string) {
     try {
-      const response = await axios.get(`${API_URL}${API_ENDPOINTS.DATA_SOURCES}/${id}`);
+      const response = await api.get(`${API_ENDPOINTS.DATA_SOURCES}/${id}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching source:', error);
@@ -208,7 +205,7 @@ class MetricService {
 
   async createSource(source: any) {
     try {
-      const response = await axios.post(`${API_URL}${API_ENDPOINTS.DATA_SOURCES}`, source);
+      const response = await api.post(API_ENDPOINTS.DATA_SOURCES, source);
       return response.data;
     } catch (error) {
       console.error('Error creating source:', error);
@@ -218,7 +215,7 @@ class MetricService {
 
   async updateSource(id: string, source: any) {
     try {
-      const response = await axios.put(`${API_URL}/sources/${id}`, source);
+      const response = await api.put(`/sources/${id}`, source);
       return response.data;
     } catch (error) {
       console.error('Error updating source:', error);
@@ -228,7 +225,7 @@ class MetricService {
 
   async deleteSource(id: string) {
     try {
-      const response = await axios.delete(`${API_URL}/sources/${id}`);
+      const response = await api.delete(`/sources/${id}`);
       return response.data;
     } catch (error) {
       console.error('Error deleting source:', error);
@@ -238,7 +235,7 @@ class MetricService {
 
   async testSource(source: any) {
     try {
-      const response = await axios.post(`${API_URL}/sources/test`, source);
+      const response = await api.post('/sources/test', source);
       return response.data;
     } catch (error) {
       console.error('Error testing source:', error);
@@ -249,14 +246,10 @@ class MetricService {
   // Validasi dan preview query Flux
   async validateQuery(params: FluxQueryParams): Promise<FluxQueryResponse> {
     try {
-      console.log('Validating Flux query:', params);
-      
-      const response = await axios.post<FluxQueryResponse>(
-        `${API_URL}${API_ENDPOINTS.DATA_SOURCE_QUERY(params.dataSourceId)}`,
+      const response = await api.post<FluxQueryResponse>(
+        API_ENDPOINTS.DATA_SOURCE_QUERY(params.dataSourceId),
         { query: params.query }
       );
-
-      console.log('Query validation response:', response.data);
       
       if (!response.data || !response.data.series) {
         throw new Error('Invalid response format from server');
@@ -288,7 +281,7 @@ class MetricService {
       }
 
       // Kirim query ke endpoint validasi
-      const response = await axios.post(`${API_URL}${API_ENDPOINTS.VALIDATE_FLUX_QUERY}`, {
+      const response = await api.post(`${API_ENDPOINTS.VALIDATE_FLUX_QUERY}`, {
         dataSourceId,
         query
       });
@@ -315,12 +308,11 @@ class MetricService {
   async getMetrics(dataSourceId?: string) {
     try {
       if (dataSourceId) {
-        const response = await axios.get(`${API_URL}/visualizations/metrics`, {
-          params: { dataSourceId }
-        });
+        const response = await api.get(`/api/visualizations/metrics?dataSourceId=${dataSourceId}`);
         return response.data;
       } else {
-        const response = await axios.get(`${API_URL}${API_ENDPOINTS.DATA_SOURCES}/metrics`);
+        // Fallback for when no dataSourceId is provided
+        const response = await api.get('/api/visualizations/metrics');
         return response.data;
       }
     } catch (error) {

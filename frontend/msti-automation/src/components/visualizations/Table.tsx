@@ -43,8 +43,27 @@ const TableVisualization = ({ data, options }: TableProps) => {
     let rowIndex = 0;
     
     // Process data from query results
+    // Safety check: ensure data exists and is not null/undefined
+    if (!data || typeof data !== 'object') {
+      console.warn('Table component: data is null or undefined');
+      setColumns([]);
+      setRows([]);
+      return;
+    }
+    
     Object.entries(data).forEach(([, queryResult]) => {
+      // Safety check: ensure queryResult exists and has series
+      if (!queryResult || !queryResult.series || !Array.isArray(queryResult.series)) {
+        console.warn('Table component: queryResult or series is null/undefined', queryResult);
+        return;
+      }
+      
       queryResult.series.forEach(serie => {
+        // Safety check: ensure serie exists and has data
+        if (!serie || !serie.data || !Array.isArray(serie.data) || !serie.fields || !Array.isArray(serie.fields)) {
+          console.warn('Table component: serie, serie.data, or serie.fields is null/undefined', serie);
+          return;
+        }
         // Extract columns from fields
         const serieColumns = serie.fields.map(field => ({
           field,

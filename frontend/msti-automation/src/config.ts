@@ -1,4 +1,23 @@
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+// Dynamic API URL configuration for blue-green deployment
+const getApiUrl = () => {
+  // Priority: VITE_API_URL > localStorage > default
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Check localStorage for dynamic server configuration
+  const serverAddress = localStorage.getItem('ip_host');
+  const serverPort = localStorage.getItem('port');
+  
+  if (serverAddress && serverPort) {
+    return `http://${serverAddress}:${serverPort}/api`;
+  }
+  
+  // Default fallback
+  return 'http://192.168.238.10:3001/api';
+};
+
+export const API_URL = getApiUrl();
 
 export const API_ENDPOINTS = {
   // Visualization endpoints

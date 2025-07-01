@@ -1,0 +1,86 @@
+import Gauge from './Gauge';
+import Interface from './Interface';
+import Table from './Table';
+import TimeSeries from './TimeSeries';
+import ChordDiagram from './ChordDiagram';
+
+// Visualization Components Export
+export { default as TimeSeries } from './TimeSeries';
+export { default as Gauge } from './Gauge';
+export { default as Table } from './Table';
+export { default as Interface } from './Interface';
+export { default as ChordDiagram } from './ChordDiagram';
+
+// Common visualization props interface
+export interface BaseVisualizationProps {
+  data: Record<string, any>;
+  options?: Record<string, any>;
+  title?: string;
+  height?: number | string;
+  width?: number | string;
+}
+
+// Visualization type enum
+export enum VisualizationType {
+  TIME_SERIES = 'time-series',
+  GAUGE = 'gauge', 
+  TABLE = 'table',
+  INTERFACE = 'interface',
+  INTERFACE_STATUS = 'interface-status', // Legacy support
+  CHORD_DIAGRAM = 'chord-diagram'
+}
+
+// Visualization registry for dynamic component loading
+export const VISUALIZATION_COMPONENTS = {
+  [VisualizationType.TIME_SERIES]: TimeSeries,
+  [VisualizationType.GAUGE]: Gauge,
+  [VisualizationType.TABLE]: Table,
+  [VisualizationType.INTERFACE]: Interface,
+  [VisualizationType.INTERFACE_STATUS]: Interface, // Legacy mapping
+  [VisualizationType.CHORD_DIAGRAM]: ChordDiagram,
+} as const;
+
+// Type for visualization component props
+export interface VisualizationComponentProps {
+  data: Record<string, any>;
+  options: Record<string, any>;
+  title?: string;
+}
+
+// Helper function to get visualization component
+export const getVisualizationComponent = (type: string) => {
+  // Normalize type string
+  const normalizedType = type?.toLowerCase().replace(/[_-]/g, '-');
+  
+  console.log('getVisualizationComponent - Input type:', type);
+  console.log('getVisualizationComponent - Normalized type:', normalizedType);
+  
+  // Direct mapping for common types
+  const typeMapping: Record<string, keyof typeof VISUALIZATION_COMPONENTS> = {
+    'timeseries': VisualizationType.TIME_SERIES,
+    'time-series': VisualizationType.TIME_SERIES,
+    'gauge': VisualizationType.GAUGE,
+    'memory-usage': VisualizationType.GAUGE, // Map memory-usage to gauge
+    'table': VisualizationType.TABLE,
+    'interface': VisualizationType.INTERFACE,
+    'interface-status': VisualizationType.INTERFACE_STATUS,
+    'chord-diagram': VisualizationType.CHORD_DIAGRAM,
+    'chorddiagram': VisualizationType.CHORD_DIAGRAM,
+    'chord': VisualizationType.CHORD_DIAGRAM,
+  };
+  
+  // First try direct mapping
+  const mappedType = typeMapping[normalizedType];
+  console.log('getVisualizationComponent - Mapped type:', mappedType);
+  
+  if (mappedType) {
+    const component = VISUALIZATION_COMPONENTS[mappedType];
+    console.log('getVisualizationComponent - Component found:', component);
+    return component;
+  }
+  
+  // Fallback to exact match
+  const fallbackComponent = VISUALIZATION_COMPONENTS[type as keyof typeof VISUALIZATION_COMPONENTS];
+  console.log('getVisualizationComponent - Fallback component:', fallbackComponent);
+  return fallbackComponent;
+}; 
