@@ -124,10 +124,6 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
         // Transform response to format expected by visualization components
         const transformedData: Record<string, any> = {};
         
-        console.log('Panel data response:', response);
-        console.log('Panel type:', panel.type);
-        console.log('Panel queries:', panel.queries);
-        
         if (response && Array.isArray(response)) {
           response.forEach((queryResult, index) => {
             const refId = panel.queries[index]?.refId || `Query${index}`;
@@ -150,18 +146,14 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
                 };
               }
             } else {
-              console.warn(`Invalid result format for panel ${panel.id}, query ${refId}:`, result);
               transformedData[refId] = {
                 state: "Error",
                 series: []
               };
             }
           });
-        } else {
-          console.warn(`Invalid response format for panel ${panel.id}:`, response);
         }
         
-        console.log('Transformed data:', transformedData);
         setData(transformedData);
       } catch (err: any) {
         console.error('Error fetching panel data:', err);
@@ -182,11 +174,6 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
   // Get the appropriate visualization component
   const VisualizationComponent = getVisualizationComponent(panel.type);
   
-  // Add debugging for component resolution
-  console.log('VisualizationPanel - Panel type:', panel.type);
-  console.log('VisualizationPanel - VisualizationComponent:', VisualizationComponent);
-  console.log('VisualizationPanel - Panel title:', panel.title);
-
   // Handle legacy interface-status type
   const isLegacyInterfaceStatus = panel.type === 'interface-status';
 

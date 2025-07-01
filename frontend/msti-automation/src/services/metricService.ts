@@ -305,10 +305,16 @@ class MetricService {
     }
   }
 
-  async getMetrics(dataSourceId: string) {
+  async getMetrics(dataSourceId?: string) {
     try {
-      const response = await api.get(`/api/visualizations/metrics?dataSourceId=${dataSourceId}`);
-      return response.data;
+      if (dataSourceId) {
+        const response = await api.get(`/api/visualizations/metrics?dataSourceId=${dataSourceId}`);
+        return response.data;
+      } else {
+        // Fallback for when no dataSourceId is provided
+        const response = await api.get('/api/visualizations/metrics');
+        return response.data;
+      }
     } catch (error) {
       console.error('Error fetching metrics:', error);
       throw error;
