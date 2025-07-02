@@ -147,7 +147,7 @@ const PanelForm: React.FC = () => {
         await metricService.createPanel(dashboardId, panelPayload);
       }
 
-      navigate(`/dashboard/${dashboardId}`);
+      navigate(`/dashboard/view/${dashboardId}`);
     } catch (err: any) {
       console.error('Error saving panel:', err);
       setError(err.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'create'} panel`);
@@ -283,7 +283,6 @@ const PanelForm: React.FC = () => {
                 required
                 >
                 <option value="">Pilih Tipe Visualisasi</option>
-                <option value="memory-usage">Memory Usage</option>
                 <option value="timeseries">Time Series</option>
                 <option value="interface-status">Interface Status</option>
                 <option value="gauge">Gauge</option>
@@ -292,7 +291,7 @@ const PanelForm: React.FC = () => {
               </select>
             </div>
           </div>
-              </div>
+        </div>
               
         {/* Query Section */}
         <div className="bg-white shadow-sm rounded-lg p-6">
@@ -355,11 +354,11 @@ const PanelForm: React.FC = () => {
               rows={8}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
               placeholder={`from(bucket: "telegraf")
-  |> range(start: -5m)
-  |> filter(fn: (r) => r._measurement == "interface_status")
-  |> filter(fn: (r) => r._field == "status")
-  |> last()
-  |> yield(name: "result")`}
+                      |> range(start: -5m)
+                      |> filter(fn: (r) => r._measurement == "interface_status")
+                      |> filter(fn: (r) => r._field == "status")
+                      |> last()
+                      |> yield(name: "result")`}
               required
             />
 
