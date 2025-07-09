@@ -17,7 +17,7 @@ interface DataSource {
 interface PanelData {
   title: string;
   description: string;
-  type: '' | 'timeseries' | 'interface-status' | 'gauge' | 'table' | 'chord-diagram';
+  type: '' | 'hostname' | 'timeseries' | 'interface-status' | 'gauge' | 'table' | 'chord-diagram';
   dataSourceId?: string;
   queryText?: string;
   options: {
@@ -283,6 +283,7 @@ const PanelForm: React.FC = () => {
                 required
                 >
                 <option value="">Pilih Tipe Visualisasi</option>
+                <option value="hostname">Hostname</option>
                 <option value="timeseries">Time Series</option>
                 <option value="interface-status">Interface Status</option>
                 <option value="gauge">Gauge</option>

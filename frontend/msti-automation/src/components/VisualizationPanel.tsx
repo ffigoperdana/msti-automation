@@ -207,7 +207,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
           </div>
         ) : VisualizationComponent ? (
           <ErrorBoundary componentName={`${panel.type} Visualization`}>
-            {panel.type === 'interface-status' || panel.type === 'interface' || panel.type === 'gauge' || panel.type === 'memory-usage' || panel.type === 'chord-diagram' ? (
+            {panel.type === 'hostname' || panel.type === 'interface-status' || panel.type === 'interface' || panel.type === 'gauge' || panel.type === 'memory-usage' || panel.type === 'chord-diagram' ? (
               <VisualizationComponent
                 panelId={panel.id}
                 queryResult={data}
