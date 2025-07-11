@@ -11,6 +11,7 @@
   "dependencies": {
     "@amcharts/amcharts5": "^5.13.3",
     "@faker-js/faker": "^9.3.1",
+    "antd": "^5.26.4",
     "apexcharts": "^4.7.0",
     "axios": "^1.6.7",
     "chart.js": "^4.4.1",

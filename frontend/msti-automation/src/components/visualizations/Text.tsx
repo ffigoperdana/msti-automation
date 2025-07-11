@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import metricService from '../../services/metricService';
 
-interface HostnameProps {
+interface TextProps {
     panelId: string;
-    queryResult?: any;
-    options?: any;
 }
 
 interface Field {
@@ -16,8 +14,8 @@ interface Field {
     };
 }
 
-const Hostname: React.FC<HostnameProps> = ({ panelId }) => {
-    const [hostname, setHostname] = useState<string>('UNKNOWN');
+const Text: React.FC<TextProps> = ({ panelId }) => {
+    const [text, setText] = useState<string>('UNKNOWN');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -29,35 +27,31 @@ const Hostname: React.FC<HostnameProps> = ({ panelId }) => {
                 setLoading(true);
                 const response = await metricService.executePanelQuery(panelId);
 
-                if (response?.[0]?.result?.series?.[0]?.fields) {
-                    const fields = response[0].result.series[0].fields;
-
-                    const nameField = fields.find((f: Field) =>
-                        f.name.toLowerCase() === "name"
-                    );
-                    if (nameField && nameField.values && nameField.values.length > 0) {
-                        const latestHostname = nameField.values[nameField.values.length - 1];
-                        setHostname(latestHostname?.toString() || 'UNKNOWN');
+                const fields: Field[] | undefined = response?.[0]?.result?.series?.[0]?.fields;
+                if (fields && fields.length > 0) {
+                    // Ambil field pertama yang bertipe string/text
+                    const textField = fields.find(f => f.type === 'string' || f.type === 'name') || fields[0];
+                    if (textField.values && textField.values.length > 0) {
+                        const latestText = textField.values[textField.values.length - 1];
+                        setText(latestText?.toString() || 'UNKNOWN');
                     } else {
-                        setHostname('UNKNOWN');
+                        setText('UNKNOWN');
                     }
                     setError(null);
                 } else {
-                    setHostname('UNKNOWN');
-                    setError('No hostname data available');
+                    setText('UNKNOWN');
+                    setError('No text data available');
                 }
             } catch (err) {
-                setError('Failed to fetch hostname');
+                setError('Failed to fetch text');
             } finally {
                 setLoading(false);
             }
         };
 
-        if (panelId) {
-            fetchData();
-            const interval = setInterval(fetchData, 30000);
-            return () => clearInterval(interval);
-        }
+        fetchData();
+        const interval = setInterval(fetchData, 30000);
+        return () => clearInterval(interval);
     }, [panelId]);
 
     return (
@@ -74,14 +68,12 @@ const Hostname: React.FC<HostnameProps> = ({ panelId }) => {
             ) : error ? (
                 <div className="text-red-500">{error}</div>
             ) : (
-                <>
-                    <div className="text-4xl font-bold text-blue-700 break-all">
-                        {hostname}
-                    </div>
-                </>
+                <div className="text-4xl font-bold text-blue-700 break-all">
+                    {text}
+                </div>
             )}
         </div>
     );
 };
 
-export default Hostname;
+export default Text;
