@@ -1,4 +1,5 @@
 import Text from './Text';
+import Stat from './Stat';
 import Gauge from './Gauge';
 import Interface from './Interface';
 import Table from './Table';
@@ -7,6 +8,7 @@ import ChordDiagram from './ChordDiagram';
 
 // Visualization Components Export
 export { default as Text } from './Text';
+export { default as Stat } from './Stat';
 export { default as TimeSeries } from './TimeSeries';
 export { default as Gauge } from './Gauge';
 export { default as Table } from './Table';
@@ -25,6 +27,7 @@ export interface BaseVisualizationProps {
 // Visualization type enum
 export enum VisualizationType {
   TEXT = 'text',
+  STAT = 'stat',
   TIME_SERIES = 'time-series',
   GAUGE = 'gauge', 
   TABLE = 'table',
@@ -36,6 +39,7 @@ export enum VisualizationType {
 // Visualization registry for dynamic component loading
 export const VISUALIZATION_COMPONENTS = {
   [VisualizationType.TEXT]: Text,
+  [VisualizationType.STAT]: Stat,
   [VisualizationType.TIME_SERIES]: TimeSeries,
   [VisualizationType.GAUGE]: Gauge,
   [VisualizationType.TABLE]: Table,
@@ -62,6 +66,7 @@ export const getVisualizationComponent = (type: string) => {
   // Direct mapping for common types
   const typeMapping: Record<string, keyof typeof VISUALIZATION_COMPONENTS> = {
     'text': VisualizationType.TEXT,
+    'stat': VisualizationType.STAT,
     'timeseries': VisualizationType.TIME_SERIES,
     'time-series': VisualizationType.TIME_SERIES,
     'gauge': VisualizationType.GAUGE,
