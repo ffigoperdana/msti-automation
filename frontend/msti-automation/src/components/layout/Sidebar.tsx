@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 interface SidebarProps {
@@ -26,10 +26,17 @@ interface MenuItem {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  // State untuk mengontrol dropdown mana yang terbuka
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
-  // State untuk submenu Ansible yang terbuka
   const [openAnsibleSubmenu, setOpenAnsibleSubmenu] = useState(false);
+
+  // Tutup sidebar otomatis saat resize ke desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) onClose();
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [onClose]);
 
   const menuItems: MenuItem[] = [
     { 
@@ -99,131 +106,104 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       <div
         className={`fixed md:static inset-y-0 left-0 w-64 bg-gray-800 text-white transform ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
-        } md:translate-x-0 transition-transform duration-200 ease-in-out z-30`}
+        } md:translate-x-0 transition-transform duration-200 ease-in-out z-30
+        flex flex-col h-full`}
+        style={{ maxHeight: '100vh' }}
       >
-        <div className="flex flex-col h-full">
-          <div className="flex items-center justify-center p-4">
-            <span className="text-xl items-center font-bold">MSTI</span>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-md hover:bg-gray-700 md:hidden"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
-          </div>
-
-          <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
-            {menuItems.map((item) => (
-              <div key={item.title} className="mb-1">
-                {item.children ? (
-                  // Menu dengan dropdown
-                  <div>
-                    <button
-                      onClick={() => toggleMenu(item.title)}
-                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
-                    >
-                      <div className="flex items-center">
-                        <span className="mr-3">{item.icon}</span>
-                        <span>{item.title}</span>
-                      </div>
-                      <svg
-                        className={`w-4 h-4 transition-transform ${openMenus[item.title] ? 'rotate-180' : ''}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
-                    </button>
-                    
-                    {/* Dropdown children */}
-                    {openMenus[item.title] && (
-                      <div className="mt-1 ml-6 space-y-1">
-                        {item.children.map((child) => (
-                          child.isSubmenu ? (
-                            <div key={child.title}>
-                              <button
-                                onClick={toggleAnsibleSubmenu}
-                                className="w-full flex items-center justify-between px-4 py-2 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
-                              >
-                                <span>{child.title}</span>
-                                <svg
-                                  className={`w-4 h-4 transition-transform ${openAnsibleSubmenu ? 'rotate-180' : ''}`}
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M19 9l-7 7-7-7"
-                                  />
-                                </svg>
-                              </button>
-                              
-                              {/* Ansible submenu */}
-                              {openAnsibleSubmenu && child.children && (
-                                <div className="mt-1 ml-4 space-y-1">
-                                  {child.children.map((subChild) => (
-                                    <Link
-                                      key={subChild.path}
-                                      to={subChild.path}
-                                      onClick={onClose}
-                                      className="block px-4 py-2 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
-                                    >
-                                      {subChild.title}
-                                    </Link>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <Link
-                              key={child.path}
-                              to={child.path}
-                              onClick={onClose}
-                              className="block px-4 py-2 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
-                            >
-                              {child.title}
-                            </Link>
-                          )
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  // Menu tanpa dropdown
-                  <Link
-                    to={item.path || '/'}
-                    onClick={onClose}
-                    className="flex items-center px-4 py-2.5 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
-                  >
-                    <span className="mr-3">{item.icon}</span>
-                    <span>{item.title}</span>
-                  </Link>
-                )}
-              </div>
-            ))}
-          </nav>
+        <div className="flex items-center justify-between p-4 md:justify-center">
+          <span className="text-xl font-bold">MSTI</span>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-md hover:bg-gray-700 md:hidden"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
+        <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+          {menuItems.map((item) => (
+            <div key={item.title} className="mb-1">
+              {item.children ? (
+                <div>
+                  <button
+                    onClick={() => toggleMenu(item.title)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
+                  >
+                    <div className="flex items-center">
+                      <span className="mr-3">{item.icon}</span>
+                      <span>{item.title}</span>
+                    </div>
+                    <svg
+                      className={`w-4 h-4 transition-transform ${openMenus[item.title] ? 'rotate-180' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {openMenus[item.title] && (
+                    <div className="mt-1 ml-6 space-y-1">
+                      {item.children.map((child) =>
+                        child.isSubmenu ? (
+                          <div key={child.title}>
+                            <button
+                              onClick={toggleAnsibleSubmenu}
+                              className="w-full flex items-center justify-between px-4 py-2 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
+                            >
+                              <span>{child.title}</span>
+                              <svg
+                                className={`w-4 h-4 transition-transform ${openAnsibleSubmenu ? 'rotate-180' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            {openAnsibleSubmenu && child.children && (
+                              <div className="mt-1 ml-4 space-y-1">
+                                {child.children.map((subChild) => (
+                                  <Link
+                                    key={subChild.path}
+                                    to={subChild.path}
+                                    onClick={onClose}
+                                    className="block px-4 py-2 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
+                                  >
+                                    {subChild.title}
+                                  </Link>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <Link
+                            key={child.path}
+                            to={child.path}
+                            onClick={onClose}
+                            className="block px-4 py-2 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
+                          >
+                            {child.title}
+                          </Link>
+                        )
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  to={item.path || '/'}
+                  onClick={onClose}
+                  className="flex items-center px-4 py-2.5 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
+                >
+                  <span className="mr-3">{item.icon}</span>
+                  <span>{item.title}</span>
+                </Link>
+              )}
+            </div>
+          ))}
+        </nav>
       </div>
     </>
   );

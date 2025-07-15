@@ -15,7 +15,21 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      {/* Sidebar: hidden on mobile, visible on md+ */}
+      <div className="hidden md:block">
+        <Sidebar isOpen={true} onClose={() => {}} />
+      </div>
+      {/* Sidebar drawer for mobile */}
+      <div className={`fixed inset-0 z-40 md:hidden transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+        {/* Overlay */}
+        {isSidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-30"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
+      </div>
       <div className="flex-1 flex flex-col min-h-0 w-full">
         <Header onMenuClick={toggleSidebar} />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-200 p-3 sm:p-4 lg:p-6">
