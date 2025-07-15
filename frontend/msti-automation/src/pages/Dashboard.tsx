@@ -121,80 +121,6 @@ const PanelMenu: React.FC<{
   );
 };
 
-// const HostnamePanel: React.FC<{
-//   panel: Panel;
-//   dashboardId: string;
-//   onDelete: () => void;
-// }> = ({ panel, dashboardId, onDelete }) => {
-//   const [hostname, setHostname] = useState<string | null>(null);
-//   const [loading, setLoading] = useState(true);
-//   const [error, setError] = useState<string | null>(null);
-
-//   useEffect(() => {
-//     const fetchHostname = async () => {
-//       try {
-//         setLoading(true);
-//         const response = await metricService.executePanelQuery(panel.id);
-//         if (response?.[0]?.result?.series?.[0]?.fields) {
-//           const fields = response[0].result.series[0].fields;
-//           const hostnameField = fields.find((f: Field) => f.name.toLowerCase() === "name");
-//           if (hostnameField && hostnameField.values.length > 0) {
-//             const latestHostname = hostnameField.values[hostnameField.values.length - 1];
-//             setHostname(latestHostname);
-//             setError(null);
-//           } else {
-//             throw new Error('No hostname data available');
-//           }
-//         } else {
-//           throw new Error('Invalid response format');
-//         }
-//       } catch (err) {
-//         setError('Failed to fetch hostname');
-//       } finally {
-//         setLoading(false);
-//       }
-//     };
-
-//     fetchHostname();
-//     const interval = setInterval(fetchHostname, 60000);
-//     return () => clearInterval(interval);
-//   }, [panel.id]);
-
-//   return (
-//     <div className="bg-white rounded-lg shadow-sm p-4">
-//       <div className="flex justify-between items-start mb-4">
-//         <h3 className="text-lg font-semibold text-gray-900">{panel.title}</h3>
-//         <PanelMenu 
-//           id={panel.id} 
-//           dashboardId={dashboardId} 
-//           panelType={panel.type}
-//           onDelete={onDelete}
-//         />
-//       </div>
-//       <div className="flex flex-col items-center justify-center p-6 rounded-lg bg-gray-50">
-//         {loading ? (
-//           <div className="animate-pulse flex space-x-4">
-//             <div className="flex-1 space-y-4 py-1">
-//               <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-//               <div className="space-y-2">
-//                 <div className="h-4 bg-gray-200 rounded"></div>
-//               </div>
-//             </div>
-//           </div>
-//         ) : error ? (
-//           <div className="text-red-500">{error}</div>
-//         ) : (
-//           <>
-//             <div className="text-4xl font-bold text-blue-700 break-all">
-//               {hostname}
-//             </div>
-//           </>
-//         )}
-//       </div>
-//     </div>
-//   );
-// };
-
 // Komponen Panel Status Interface
 const InterfaceStatusPanel: React.FC<{
   panel: Panel;
@@ -393,16 +319,6 @@ const Dashboard: React.FC = () => {
                   />
                 </div>
               );
-            // case 'hostname':
-            //   return (
-            //     <div key={panel.id} className="min-h-[280px]">
-            //       <HostnamePanel
-            //         panel={panel}
-            //         dashboardId={dashboard.id}
-            //         onDelete={() => handleDeletePanel(panel.id)}
-            //       />
-            //     </div>
-            //   );
             default:
               return (
                 <div key={panel.id} className="min-h-[280px]">
