@@ -508,7 +508,7 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
           </div>
         );
 
-      case 'interface-status':
+      case 'interface':
         const { status, time, metadata } = validationResult.data;
         return (
           <div className="mt-4 p-4 bg-gray-50 border rounded-md">

@@ -174,7 +174,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
   // Get the appropriate visualization component
   const VisualizationComponent = getVisualizationComponent(panel.type);
   
-  // Handle legacy interface-status type
+  // Support legacy interface-status type for backward compatibility
   const isLegacyInterfaceStatus = panel.type === 'interface-status';
 
   return (

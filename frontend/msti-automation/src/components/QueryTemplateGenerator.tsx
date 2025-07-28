@@ -50,32 +50,31 @@ export const QUERY_TEMPLATES: Record<string, QueryTemplate[]> = {
       category: 'network'
     }
   ],
-  'interface-status': [
+  'interface': [
     {
-      name: 'Interface Status',
-      description: 'Monitor network interface up/down status',
-      template: `from(bucket: "\${bucket}")
-  |> range(start: -5m)
-  |> filter(fn: (r) => r["_measurement"] == "sys/intf")
-  |> filter(fn: (r) => r["dn"] == "\${interface_dn}")
-  |> filter(fn: (r) => r["_field"] == "operSt")
-  |> filter(fn: (r) => r["source"] == "\${source}")
-  |> last()
-  |> yield(name: "interface_status")`,
-      panelType: 'interface-status',
+      name: 'Basic Interface Status',
+      description: 'Query untuk status interface dasar',
+      template: `from(bucket: "{bucket}")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r["_measurement"] == "interface_status")
+  |> filter(fn: (r) => r["interface"] == "eth0")
+  |> last()`,
+      panelType: 'interface',
       category: 'network'
     },
     {
-      name: 'Port Status Check',
-      description: 'Check specific port operational status',
-      template: `from(bucket: "\${bucket}")
-  |> range(start: -1m)
+      name: 'Interface Up/Down Status',
+      description: 'Query untuk memeriksa status up/down interface',
+      template: `from(bucket: "{bucket}")
+  |> range(start: -5m)
   |> filter(fn: (r) => r["_measurement"] == "interface")
-  |> filter(fn: (r) => r["interface"] == "\${interface_name}")
   |> filter(fn: (r) => r["_field"] == "admin_status" or r["_field"] == "oper_status")
-  |> last()
-  |> yield(name: "port_status")`,
-      panelType: 'interface-status',
+  |> filter(fn: (r) => r["interface_name"] == "{interface}")
+  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> map(fn: (r) => ({ r with status: if r.admin_status == 1 and r.oper_status == 1 then "UP" else "DOWN" }))
+  |> keep(columns: ["_time", "status"])
+  |> last()`,
+      panelType: 'interface',
       category: 'network'
     }
   ],
