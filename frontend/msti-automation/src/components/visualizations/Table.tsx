@@ -21,7 +21,7 @@ interface RowData {
   [key: string]: any;
 }
 
-const TableVisualization = ({ data, options }: TableProps) => {
+const Table = ({ data, options }: TableProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState<Column[]>([]);
   const [rows, setRows] = useState<RowData[]>([]);
@@ -311,4 +311,4 @@ const TableVisualization = ({ data, options }: TableProps) => {
   );
 };
 
-export default TableVisualization; 
+export default Table; 
