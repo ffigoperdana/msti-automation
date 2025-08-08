@@ -182,6 +182,19 @@ class MetricService {
     }
   }
 
+  async saveDashboardLayout(id: string, layouts: any) {
+    try {
+      // The backend expects a flat array of layout items for a single breakpoint.
+      // We'll send the layout for the 'lg' breakpoint as the canonical one.
+      const layout = layouts.lg || [];
+      const response = await api.put(`${API_ENDPOINTS.DASHBOARDS}/${id}/layout`, { layout });
+      return response.data;
+    } catch (error) {
+      console.error('Error saving dashboard layout:', error);
+      throw error;
+    }
+  }
+
   // Source methods
   async getSources() {
     try {

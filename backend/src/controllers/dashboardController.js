@@ -208,4 +208,31 @@ export const deletePanel = async (req, res) => {
     console.error('Error deleting panel:', error);
     res.status(500).json({ error: error.message });
   }
+};
+
+export const updateDashboardLayout = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { layout } = req.body;
+
+    const updatedPanels = await Promise.all(
+      layout.map(item => {
+        return prisma.visualization.update({
+          where: { id: item.i },
+          data: {
+            config: {
+              position: { x: item.x, y: item.y },
+              width: item.w,
+              height: item.h
+            }
+          }
+        });
+      })
+    );
+
+    res.json(updatedPanels);
+  } catch (error) {
+    console.error('Error updating dashboard layout:', error);
+    res.status(500).json({ error: error.message });
+  }
 }; 

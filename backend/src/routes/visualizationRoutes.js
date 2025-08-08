@@ -17,7 +17,8 @@ import {
   getDataSources,
   getDataSourceMetrics,
   executeDataSourceQuery,
-  getPanel
+  getPanel,
+  updateDashboardLayout
 } from '../controllers/visualizationController.js';
 
 const router = express.Router();
@@ -43,6 +44,7 @@ router.get('/dashboards/:id', getDashboard);
 router.post('/dashboards', createDashboard);
 router.put('/dashboards/:id', updateDashboard);
 router.delete('/dashboards/:id', deleteDashboard);
+router.put('/dashboards/:id', updateDashboardLayout);
 
 // Panel routes
 router.get('/panels/:id', getPanel);

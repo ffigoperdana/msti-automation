@@ -832,3 +832,43 @@ export const getPanel = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+export const updateDashboardLayout = async (req, res) => {
+  const { id } = req.params;
+  const { layout } = req.body;
+
+  if (!Array.isArray(layout)) {
+    return res.status(400).json({ error: 'Invalid layout format. Expected an array.' });
+  }
+
+  try {
+    for (const item of layout) {
+      const { i, x, y, w, h } = item;
+
+      // Find the existing visualization to access its config
+      const existingVisualization = await prisma.visualization.findUnique({
+        where: { id: i },
+      });
+
+      if (existingVisualization) {
+        // Merge new position with existing config
+        const newConfig = {
+          ...existingVisualization.config,
+          position: { x, y, w, h },
+        };
+
+        await prisma.visualization.update({
+          where: { id: i },
+          data: { config: newConfig },
+        });
+      }
+    }
+
+    res.status(200).json({ 
+      message: 'Dashboard layout updated successfully', 
+    });
+  } catch (error) {
+    console.error('Error updating dashboard layout:', error);
+    res.status(500).json({ error: 'Failed to update dashboard layout' });
+  }
+};
