@@ -834,41 +834,52 @@ export const getPanel = async (req, res) => {
 };
 
 export const updateDashboardLayout = async (req, res) => {
-  const { id } = req.params;
-  const { layout } = req.body;
-
-  if (!Array.isArray(layout)) {
-    return res.status(400).json({ error: 'Invalid layout format. Expected an array.' });
-  }
-
   try {
-    for (const item of layout) {
-      const { i, x, y, w, h } = item;
+    const { id } = req.params; // This is the correct dashboardId
+    const { layout } = req.body;
 
-      // Find the existing visualization to access its config
-      const existingVisualization = await prisma.visualization.findUnique({
-        where: { id: i },
-      });
+    console.log('Received layout update for dashboard:', id, 'with layout:', JSON.stringify(layout, null, 2));
 
-      if (existingVisualization) {
-        // Merge new position with existing config
-        const newConfig = {
-          ...existingVisualization.config,
-          position: { x, y, w, h },
-        };
-
-        await prisma.visualization.update({
-          where: { id: i },
-          data: { config: newConfig },
-        });
-      }
+    if (!layout || !Array.isArray(layout)) {
+      return res.status(400).json({ error: 'Invalid layout data' });
     }
 
-    res.status(200).json({ 
-      message: 'Dashboard layout updated successfully', 
+    // For each panel in the layout, update its position AND ensure
+    // its dashboardId is correctly set.
+    const updateTransactions = layout.map(item => {
+      return prisma.visualization.update({
+        where: {
+          id: item.i // Find panel by its own ID
+        },
+        data: {
+          position: { // Update its position
+            x: item.x,
+            y: item.y,
+            w: item.w,
+            h: item.h,
+          },
+          dashboardId: id // Set/correct its dashboardId
+        }
+      });
     });
+
+    const updatedPanels = await prisma.$transaction(updateTransactions);
+    
+    // If successful, send a 200 OK status
+    res.status(200).json({ 
+      message: 'Dashboard layout updated and panel ownership corrected successfully.',
+      data: updatedPanels 
+    });
+
   } catch (error) {
     console.error('Error updating dashboard layout:', error);
+    if (error.code === 'P2025') {
+      // This error now means a panel ID from the layout truly doesn't exist.
+      return res.status(404).json({
+        error: 'One or more panels could not be found in the database.',
+        details: error.meta?.cause || 'Record to update not found.'
+      });
+    }
     res.status(500).json({ error: 'Failed to update dashboard layout' });
   }
 };

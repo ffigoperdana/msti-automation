@@ -212,27 +212,40 @@ export const deletePanel = async (req, res) => {
 
 export const updateDashboardLayout = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params; // Dashboard ID
     const { layout } = req.body;
 
-    const updatedPanels = await Promise.all(
-      layout.map(item => {
-        return prisma.visualization.update({
-          where: { id: item.i },
-          data: {
-            config: {
-              position: { x: item.x, y: item.y },
-              width: item.w,
-              height: item.h
-            }
+    if (!layout || !Array.isArray(layout)) {
+      return res.status(400).json({ error: 'Invalid layout data' });
+    }
+
+    // We use a transaction to ensure all updates succeed or none do.
+    const updateTransactions = layout.map(item => {
+      return prisma.visualization.update({
+        where: { 
+          id: item.i, // item.i is the panel's (visualization) id
+          dashboardId: id // Ensure the panel belongs to the correct dashboard
+        },
+        data: {
+          position: {
+            x: item.x,
+            y: item.y,
+            w: item.w,
+            h: item.h,
           }
-        });
-      })
-    );
+        }
+      });
+    });
+
+    const updatedPanels = await prisma.$transaction(updateTransactions);
 
     res.json(updatedPanels);
   } catch (error) {
     console.error('Error updating dashboard layout:', error);
-    res.status(500).json({ error: error.message });
+    // Check for specific Prisma error for records not found
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'One or more panels not found or do not belong to this dashboard.' });
+    }
+    res.status(500).json({ error: 'Failed to update dashboard layout' });
   }
 }; 

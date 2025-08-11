@@ -42,9 +42,9 @@ router.post('/validate-flux-query', validateFluxQuery);
 router.get('/dashboards', getDashboards);
 router.get('/dashboards/:id', getDashboard);
 router.post('/dashboards', createDashboard);
+router.put('/dashboards/:id/layout', updateDashboardLayout);
 router.put('/dashboards/:id', updateDashboard);
-router.delete('/dashboards/:id', deleteDashboard);
-router.put('/dashboards/:id', updateDashboardLayout);
+router.delete('/dashboards/:id', deleteDashboard); 
 
 // Panel routes
 router.get('/panels/:id', getPanel);
