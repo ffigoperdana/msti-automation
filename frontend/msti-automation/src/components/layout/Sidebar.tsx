@@ -68,6 +68,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       icon: '🤖',
       children: [
         { title: 'Webhook', path: '/automation/webhook' },
+        { title: 'CDP Discovery', path: '/automation/cdp' },
         { title: 'Ansible', path: '#', isSubmenu: true, children: [
           { title: 'Server', path: '/automation/ansible/server' },
           { title: 'Config', path: '/automation/ansible/config' },

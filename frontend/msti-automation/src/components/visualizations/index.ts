@@ -87,4 +87,4 @@ export const getVisualizationComponent = (type: string) => {
   // Fallback to exact match
   const fallbackComponent = VISUALIZATION_COMPONENTS[type as keyof typeof VISUALIZATION_COMPONENTS];
   return fallbackComponent;
-}; 
+};

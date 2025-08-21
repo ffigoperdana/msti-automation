@@ -1,0 +1,501 @@
+from time import sleep
+import paramiko
+import re
+import json
+from collections import defaultdict, deque
+import os
+import urllib.request
+import math     # used inside calculate_device_positions
+
+# ================================================================
+#  CONFIGURATION SECTION
+# ================================================================
+username = "cisco"
+password = "cisco"
+router_ips = ["192.168.238.101"]      # <<<<< change / extend as needed
+
+
+# ================================================================
+#  CORE DISCOVERY CLASS
+# ================================================================
+class NetworkTopologyDiscovery:
+    def __init__(self, username, password):
+        self.username = username
+        self.password = password
+        self.discovered_devices = {}   # ip -> device_info
+        self.topologies = []           # list of topology dicts
+        self.visited_ips = set()
+        self.connections = []          # {from,to,from_hostname,to_hostname}
+        self.covered_seed_ips = set()  # IP yang sudah tercakup sebagai neighbor dari seed sebelumnya
+
+    # ----------------------------------------------------------------
+    #  HELPERS
+    # ----------------------------------------------------------------
+    def get_device_icon(self, device_type):
+        icon_mapping = {
+            "router": "router.jpg",
+            "switch": "server switch.jpg",
+            "firewall": "router w firewall.jpg",
+            "server": "www server.jpg",
+            "workstation": "workstation.jpg",
+            "wireless": "wireless.jpg"
+        }
+        return f"doc_jpg/{icon_mapping.get(device_type, 'router.jpg')}"
+
+    def ssh_connect(self, ip):
+        try:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(ip, username=self.username, password=self.password,
+                        banner_timeout=200, timeout=10, look_for_keys=False, allow_agent=False)
+            return ssh
+        except Exception as e:
+            print(f"SSH failed to {ip}: {e}")
+            return None
+        
+
+    def send_command(self, connection, command):
+        try:
+            connection.send(command + "\n")
+            sleep(1)
+            connection.send("\n")
+            sleep(1)
+            output = ""
+            timeout = 0
+            while timeout < 10:
+                if connection.recv_ready():
+                    output += connection.recv(65535).decode()
+                    timeout = 0
+                else:
+                    sleep(0.5)
+                    timeout += 0.5
+            return output
+        except Exception as e:
+            print(f"Command error: {e}")
+            return ""
+
+    # ----------------------------------------------------------------
+    #  DEVICE INFO HELPERS
+    # ----------------------------------------------------------------
+    def detect_hostname(self, connection=None, ssh=None, ip: str = "") -> str:
+        """Ambil hostname dengan beberapa fallback yang robust."""
+        # 1) show running-config | include ^hostname
+        try:
+            if connection is not None:
+                out = self.send_command(connection, "show running-config | include ^hostname")
+            elif ssh is not None:
+                stdin, stdout, stderr = ssh.exec_command("show running-config | include ^hostname")
+                out = stdout.read().decode()
+            else:
+                out = ""
+            m = re.search(r"^hostname\s+(\S+)", out, re.MULTILINE)
+            if m:
+                return m.group(1)
+        except Exception:
+            pass
+        # 2) show version | include uptime
+        try:
+            if connection is not None:
+                out = self.send_command(connection, "show version | include uptime")
+            elif ssh is not None:
+                stdin, stdout, stderr = ssh.exec_command("show version | include uptime")
+                out = stdout.read().decode()
+            else:
+                out = ""
+            m = re.search(r"^(\S+)\s+uptime is ", out, re.MULTILINE)
+            if m:
+                return m.group(1)
+        except Exception:
+            pass
+        # 3) fallback
+        return f"Router-{ip.split('.')[-1]}" if ip else "Unknown"
+    def _guess_type_from_platform(self, platform_text: str) -> str:
+        if not platform_text:
+            return "router"
+        p = platform_text.upper()
+        if any(k in p for k in ["WS-C", "CATALYST", "C2960", "C3560", "C3850", "C9200", "C9300", "NEXUS"]):
+            return "switch"
+        if any(k in p for k in ["ASA", "FIREPOWER", "FIREWALL"]):
+            return "firewall"
+        if any(k in p for k in ["ISR", "ASR", "ROUTER"]):
+            return "router"
+        return "router"
+
+    def _neighbor_identifier(self, neighbor: dict) -> str:
+        """Identifier stabil untuk node neighbor; gunakan IP jika ada, selain itu hostname prefiks 'HOST:'"""
+        ip = neighbor.get("ip")
+        if ip:
+            return ip
+        hostname = neighbor.get("hostname", "Unknown")
+        return f"HOST:{hostname}"
+    def _detect_type_from_pid(self, text: str) -> str:
+        """Map PID string to device type."""
+        pid = text.upper()
+        if any(k in pid for k in ["WS-C", "C9200", "C9300", "C9400", "C9500", "NEXUS", "CATALYST", "C2960", "C3560", "C3850"]):
+            return "switch"
+        if any(k in pid for k in ["ASA", "FPR", "FIREPOWER", "FIREWALL"]):
+            return "firewall"
+        if any(k in pid for k in ["ISR", "ASR", "ROUTER"]):
+            return "router"
+        return "router"
+
+    def detect_device_type_from_inventory(self, connection) -> str:
+        """Prefer deteksi tipe dari PID di show inventory (chassis). Fallback ke show version."""
+        try:
+            inv = self.send_command(connection, "show inventory")
+            # Cari blok Chassis terlebih dahulu
+            # Format umum: NAME: "Chassis", ...\nPID: <PID>, VID: ..., SN: ...
+            pid_match = re.search(r"PID:\s*([\w-]+)", inv, re.IGNORECASE)
+            if pid_match:
+                return self._detect_type_from_pid(pid_match.group(1))
+            # Fallback kuat ke versi
+            ver = self.send_command(connection, "show version")
+            if "Catalyst" in ver or "WS-C" in ver or "Switch" in ver:
+                return "switch"
+            if "ASA" in ver or "Firewall" in ver or "Firepower" in ver:
+                return "firewall"
+            return "router"
+        except Exception:
+            return "router"
+
+    def get_device_info(self, ssh, ip):
+        """Return hostname and device-type without invoke_shell()"""
+        try:
+            stdin, stdout, stderr = ssh.exec_command("show running-config | include hostname")
+            hostname_line = stdout.read().decode()
+            m = re.search(r"hostname (\S+)", hostname_line)
+            hostname = m.group(1) if m else f"Router-{ip.split('.')[-1]}"
+
+            stdin, stdout, stderr = ssh.exec_command("show version")
+            ver_out = stdout.read().decode()
+            dtype = "router"
+            if "Catalyst" in ver_out or "WS-C" in ver_out or "Switch" in ver_out:
+                dtype = "switch"
+            elif "ASA" in ver_out or "Firewall" in ver_out:
+                dtype = "firewall"
+            return {"ip": ip, "hostname": hostname, "device_type": dtype}
+        except Exception as e:
+            print(f"Error getting device info for {ip}: {e}")
+            return {"ip": ip, "hostname": f"Unknown-{ip.split('.')[-1]}", "device_type": "router"}
+
+    def get_cdp_neighbors(self, ssh):
+        """Return list of CDP neighbors without invoke_shell()"""
+        try:
+            stdin, stdout, stderr = ssh.exec_command("show cdp neighbor detail")
+            out = stdout.read().decode()
+            neighbors = []
+            cur = {}
+            for line in out.splitlines():
+                line = line.strip()
+                if line.startswith("Device ID:"):
+                    if cur:
+                        neighbors.append(cur)
+                    cur = {"hostname": line.split(":", 1)[1].strip()}
+                else:
+                    # Tangkap IP dari berbagai format baris (IP address / IPv4 address / dsb.)
+                    if "address" in line.lower():
+                        ipm = re.search(r"(\d+\.\d+\.\d+\.\d+)", line)
+                        if ipm and "ip" not in cur:
+                            cur["ip"] = ipm.group(1)
+                if line.startswith("Platform:"):
+                    plat = re.search(r"Platform: ([^,]+)", line)
+                    if plat:
+                        cur["platform"] = plat.group(1).strip()
+            if cur:
+                neighbors.append(cur)
+            return neighbors
+        except Exception as e:
+            print(f"Error getting CDP neighbors: {e}")
+            return []
+
+    # ----------------------------------------------------------------
+    #  FLOW 1  – immediate CDP topology (no SSH to neighbours)
+    # ----------------------------------------------------------------
+    def build_flow1_topology(self, start_ip):
+        ssh = self.ssh_connect(start_ip)
+        if not ssh:
+            return []
+
+        # Gunakan invoke_shell agar bisa deteksi PID dari show inventory
+        try:
+            connection = ssh.invoke_shell()
+            self.send_command(connection, "term length 0")
+            hostname = self.detect_hostname(connection=connection, ip=start_ip)
+            dtype = self.detect_device_type_from_inventory(connection)
+            device_info = {"ip": start_ip, "hostname": hostname, "device_type": dtype}
+        except Exception:
+            # Fallback: exec_command
+            hostname = self.detect_hostname(ssh=ssh, ip=start_ip)
+            base = self.get_device_info(ssh, start_ip)
+            base["hostname"] = hostname
+            device_info = base
+
+        neighbors = self.get_cdp_neighbors(ssh)
+
+        # Topologi dasar: device utama + setiap neighbor sebagai node placeholder
+        topology = [{"device": device_info, "neighbors": neighbors}]
+
+        for n in neighbors:
+            nid = self._neighbor_identifier(n)
+            nip = n.get("ip")
+            if nip:
+                self.covered_seed_ips.add(nip)
+            # tambahkan koneksi utama->neighbor (pakai identifier)
+            self.connections.append({
+                "from": start_ip,
+                "to": nid,
+                "from_hostname": device_info["hostname"],
+                "to_hostname": n.get("hostname", "Unknown")
+            })
+            # buat node placeholder neighbor jika belum ada
+            placeholder_type = self._guess_type_from_platform(n.get("platform", ""))
+            exists = any(d['device'].get('ip') == nid for d in topology)
+            if not exists:
+                display_ip = nip if nip else "-"
+                topology.append({
+                    "device": {
+                        "ip": nid,
+                        "hostname": n.get("hostname", f"Unknown"),
+                        "device_type": placeholder_type,
+                        "display_ip": display_ip
+                    },
+                    "neighbors": []
+                })
+        try:
+            ssh.close()
+        except Exception:
+            pass
+        return topology
+
+    # ----------------------------------------------------------------
+    #  FLOW 2  – epidemic expansion only if SSH succeeds
+    # ----------------------------------------------------------------
+    def epidemic_discovery(self, start_ip):
+        # ---- Flow 1 ----
+        print(f"[Flow 1] Building base topology for {start_ip}")
+        topology = self.build_flow1_topology(start_ip)
+        self.visited_ips.add(start_ip)
+
+        # ---- Flow 2 ----
+        print("[Flow 2] Epidemic expansion (only if SSH works)")
+        queue = deque()
+        for d in topology:
+            for n in d["neighbors"]:
+                if "ip" in n and n["ip"] not in self.visited_ips:
+                    queue.append(n["ip"])
+
+        while queue:
+            ip = queue.popleft()
+            if ip in self.visited_ips:
+                continue
+            ssh = self.ssh_connect(ip)
+            if not ssh:
+                continue
+
+            print(f"✅ SSH OK – expanding from {ip}")
+            self.visited_ips.add(ip)
+            # Create single interactive shell to reuse and detect PID type
+            try:
+                connection = ssh.invoke_shell()
+                self.send_command(connection, "term length 0")
+                hostname = self.detect_hostname(connection=connection, ip=ip)
+                dtype = self.detect_device_type_from_inventory(connection)
+                info = {"ip": ip, "hostname": hostname, "device_type": dtype}
+            except Exception:
+                base = self.get_device_info(ssh, ip)
+                base["hostname"] = self.detect_hostname(ssh=ssh, ip=ip)
+                info = base
+            neighbors = self.get_cdp_neighbors(ssh)
+            # update atau tambah node untuk ip ini
+            found_idx = next((i for i, d in enumerate(topology) if d['device'].get('ip') == ip), None)
+            if found_idx is not None:
+                topology[found_idx] = {"device": info, "neighbors": neighbors}
+            else:
+                topology.append({"device": info, "neighbors": neighbors})
+
+            for n in neighbors:
+                nip = n.get("ip")
+                if not nip:
+                    continue
+                # simpan koneksi dari device saat ini ke neighbor
+                self.connections.append({
+                    "from": ip,
+                    "to": nip,
+                    "from_hostname": info["hostname"],
+                    "to_hostname": n.get("hostname", "Unknown")
+                })
+                # tambahkan node placeholder untuk neighbor baru jika belum ada
+                if not any(d['device'].get('ip') == nip for d in topology):
+                    placeholder_type = self._guess_type_from_platform(n.get("platform", ""))
+                    topology.append({
+                        "device": {
+                            "ip": nip,
+                            "hostname": n.get("hostname", f"Unknown-{nip.split('.')[-1]}"),
+                            "device_type": placeholder_type
+                        },
+                        "neighbors": []
+                    })
+                # masukkan ke antrian untuk dicoba jumpshot (epidemic)
+                if nip not in self.visited_ips:
+                    queue.append(nip)
+            try:
+                ssh.close()
+            except Exception:
+                pass
+
+        return topology
+
+    # ----------------------------------------------------------------
+    #  TOP-LEVEL DRIVER
+    # ----------------------------------------------------------------
+    def discover_all_topologies(self, seed_ips):
+        """Discover one topology per seed IP (Flow 1 + optional Flow 2)"""
+        for ip in seed_ips:
+            # Skip seed jika sudah tercakup sebagai neighbor dari seed sebelumnya
+            if ip in self.covered_seed_ips:
+                print(f"Seed {ip} skipped (already covered by previous topology)")
+                continue
+            if ip not in self.visited_ips:
+                topo = self.epidemic_discovery(ip)
+                if topo:
+                    self.topologies.append(topo)
+        return self.topologies
+
+    # ----------------------------------------------------------------
+    #  HTML OUTPUT via TEMPLATE (separate frontend)
+    # ----------------------------------------------------------------
+    def _build_topology_sections_html(self) -> str:
+        sections = ""
+        for i, topology in enumerate(self.topologies, 1):
+            positions = self.calculate_device_positions(topology)
+            sections += f"""
+    <div class=\"topology-container\">
+        <div class=\"topology-title\">Topology {i}</div>
+        <div class=\"stats\">
+            <h3>📊 Topology Statistics</h3>
+            <div class=\"stats-grid\">
+                <div class=\"stat-item\">
+                    <div class=\"stat-value\">{len(topology)}</div>
+                    <div class=\"stat-label\">Total Devices</div>
+                </div>
+                <div class=\"stat-item\">
+                    <div class=\"stat-value\">{len([c for c in self.connections if any(d['device']['ip'] in [c['from'], c['to']] for d in topology)])}</div>
+                    <div class=\"stat-label\">Total Connections</div>
+                </div>
+                <div class=\"stat-item\">
+                    <div class=\"stat-value\">{__import__('datetime').datetime.now().strftime('%H:%M')}</div>
+                    <div class=\"stat-label\">Discovery Time</div>
+                </div>
+            </div>
+        </div>
+        <div class=\"controls\">
+            <button class=\"control-btn\" onclick=\"resetView({i})\">🔄 Reset View</button>
+            <button class=\"control-btn\" onclick=\"toggleConnections({i})\">🔗 Toggle Connections</button>
+            <button class=\"control-btn\" onclick=\"exportTopology({i})\">📥 Export Data</button>
+            <button class=\"control-btn\" onclick=\"centerDevices({i})\">🎯 Center Devices</button>
+        </div>
+        <div class=\"canvas-container\">
+            <div class=\"network-canvas\" id=\"topology-{i}\">\n            <svg width=\"100%\" height=\"400\" style=\"position:absolute;top:0;left:0;z-index:1;\">"""
+
+            current_nodes = {d['device']['ip'] for d in topology}
+            topology_connections = [c for c in self.connections if c['from'] in current_nodes and c['to'] in current_nodes]
+            for conn in topology_connections:
+                from_pos = positions.get(conn['from'])
+                to_pos = positions.get(conn['to'])
+                if from_pos and to_pos:
+                    sections += f"""
+                <line class=\"connection-line\" x1=\"{from_pos['x']}\" y1=\"{from_pos['y']}\" x2=\"{to_pos['x']}\" y2=\"{to_pos['y']}\"
+                      data-from=\"{conn['from']}\" data-to=\"{conn['to']}\" />"""
+
+            sections += """
+            </svg>
+"""
+
+            for device_data in topology:
+                device = device_data['device']
+                neighbors = device_data['neighbors']
+                pos = positions.get(device['ip'], {'x': 100, 'y': 100})
+                icon_path = self.get_device_icon(device['device_type'])
+                neighbor_details = [f"{n.get('hostname', 'Unknown')} ({n.get('ip', 'No IP')})" for n in neighbors]
+                sections += f"""
+            <div class=\"device\" data-ip=\"{device['ip']}\" style=\"left: {pos['x']}px; top: {pos['y']}px;\">\n                <img src=\"{icon_path}\" alt=\"{device['device_type']}\" class=\"device-icon\">\n                <div class=\"device-hostname\">{device['hostname']}</div>\n                <div class=\"device-ip\">{device.get('display_ip', device['ip'])}</div>\n                <div class=\"device-type\">{device['device_type']}</div>\n                <div class=\"device-details\">\n                    <strong>Hostname:</strong> {device['hostname']}<br>\n                    <strong>IP Address:</strong> {device.get('display_ip', device['ip'])}<br>\n                    <strong>Device Type:</strong> {device['device_type'].title()}<br>\n                    <strong>Neighbors:</strong> {len(neighbors)}<br>\n                    <strong>Neighbor Details:</strong><br>\n                    {'<br>'.join(neighbor_details) if neighbor_details else 'None'}\n                </div>\n            </div>"""
+
+            sections += """
+            </div>
+        </div>
+        <div class=\"legend\">
+            <div class=\"legend-item\"> <div class=\"legend-icon\" style=\"background: #007acc;\"></div> <span>Router</span> </div>
+            <div class=\"legend-item\"> <div class=\"legend-icon\" style=\"background: #28a745;\"></div> <span>Switch</span> </div>
+            <div class=\"legend-item\"> <div class=\"legend-icon\" style=\"background: #dc3545;\"></div> <span>Firewall</span> </div>
+            <div class=\"legend-item\"> <div class=\"legend-icon\" style=\"background: #007acc; width: 30px; height: 3px;\"></div> <span>Connection</span> </div>
+        </div>
+    </div>
+"""
+        return sections
+
+    def generate_html_from_template(self, template_path="templates/advanced_base.html", output_file="network_topology_advanced.html"):
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template = f.read()
+        except Exception as e:
+            print(f"Failed to read template {template_path}: {e}. Falling back to inline generation.")
+            # Fallback to previous inline method if template missing
+            return self.generate_advanced_html(output_file)
+
+        sections_html = self._build_topology_sections_html()
+        html = template.replace("<!--TOPOLOGY_SECTIONS-->", sections_html)
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(html)
+        print(f"Advanced HTML topology (template-based) saved to {output_file}")
+
+    # ----------------------------------------------------------------
+    #  DEVICE POSITIONING
+    # ----------------------------------------------------------------
+    def calculate_device_positions(self, topology):
+        positions = {}
+        canvas_w, canvas_h, margin = 800, 400, 100
+        n = len(topology)
+        if n == 1:
+            positions[topology[0]['device']['ip']] = {'x': canvas_w // 2, 'y': canvas_h // 2}
+        elif n == 2:
+            positions[topology[0]['device']['ip']] = {'x': canvas_w // 3, 'y': canvas_h // 2}
+            positions[topology[1]['device']['ip']] = {'x': 2 * canvas_w // 3, 'y': canvas_h // 2}
+        else:
+            cx, cy = canvas_w // 2, canvas_h // 2
+            radius = min(canvas_w, canvas_h) // 3 - margin
+            for i, d in enumerate(topology):
+                angle = 2 * math.pi * i / n
+                x = cx + radius * math.cos(angle)
+                y = cy + radius * math.sin(angle)
+                positions[d['device']['ip']] = {'x': int(x), 'y': int(y)}
+        return positions
+
+
+# ================================================================
+#  MAIN
+# ================================================================
+def main():
+    discovery = NetworkTopologyDiscovery(username, password)
+    print("Starting network topology discovery...")
+    # Baca seed dari file jika tersedia (satu IP per baris)
+    seeds = router_ips
+    try:
+        if os.path.exists('router_seeds.txt'):
+            with open('router_seeds.txt', 'r', encoding='utf-8') as f:
+                file_seeds = [line.strip() for line in f.readlines() if line.strip()]
+                if file_seeds:
+                    seeds = file_seeds
+                    print(f"Loaded {len(seeds)} seeds from router_seeds.txt")
+    except Exception as e:
+        print(f"Failed reading router_seeds.txt: {e}")
+
+    topologies = discovery.discover_all_topologies(seeds)
+    # Render using external template (frontend terpisah)
+    discovery.generate_html_from_template()
+    print("\nDiscovery completed!")
+    print(f"Topologies generated: {len(topologies)}")
+    print(f"Devices found: {len(discovery.discovered_devices)}")
+    print(f"Connections recorded: {len(discovery.connections)}")
+
+if __name__ == "__main__":
+    main()

@@ -11,6 +11,7 @@ interface Panel {
   height: number;
   position: { x: number; y: number };
   options: any;
+  refreshInterval?: number; // Add refreshInterval field
   queries: {
     refId: string;
     query: string;
@@ -111,15 +112,23 @@ const Dashboard: React.FC = () => {
 
       {/* Panels Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
-        {dashboard.panels.map((panel) => (
-          <div key={panel.id} className="min-h-[280px]">
-            <VisualizationPanel
-              panel={panel}
-              dashboardId={dashboard.id}
-              onDelete={() => handleDeletePanel(panel.id)}
-            />
-          </div>
-        ))}
+        {dashboard.panels.map((panel) => {
+          // TimeSeries panels get wider layout (span 2 columns)
+          const isTimeSeriesPanel = panel.type === 'timeseries' || panel.type === 'time-series';
+          const panelClasses = isTimeSeriesPanel 
+            ? "min-h-[400px] md:col-span-2 lg:col-span-2" // Span 2 columns and taller
+            : "min-h-[280px]";
+            
+          return (
+            <div key={panel.id} className={panelClasses}>
+              <VisualizationPanel
+                panel={panel}
+                dashboardId={dashboard.id}
+                onDelete={() => handleDeletePanel(panel.id)}
+              />
+            </div>
+          );
+        })}
       </div>
 
       {/* Empty State */}

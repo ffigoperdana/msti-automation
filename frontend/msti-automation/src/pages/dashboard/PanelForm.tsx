@@ -20,6 +20,7 @@ interface PanelData {
   type: '' | 'text' | 'stat' |'timeseries' | 'interface-status' | 'gauge' | 'table' | 'chord-diagram';
   dataSourceId?: string;
   queryText?: string;
+  refreshInterval?: number; // Add refresh interval
   options: {
     measurement: string;
     field: string;
@@ -35,18 +36,20 @@ interface PanelData {
   }>;
 }
 
-// Tipe panel yang didukung
-
-// Data dummy untuk interface
-
-// Template query berdasarkan tipe panel
-
-// Komponen Panel Status Interface Preview
+// Timeout options for refresh intervals
+const TIMEOUT_OPTIONS = [
+  { value: 10000, label: '10 seconds (Realtime)' },
+  { value: 60000, label: '60 seconds' },
+  { value: 120000, label: '120 seconds' },
+  { value: 180000, label: '180 seconds' },
+  { value: 3600000, label: '1 hour' }
+];
 
 const DEFAULT_PANEL: PanelData = {
   title: '',
   description: '',
   type: '',
+  refreshInterval: 10000, // Default 10 seconds
   options: {
     measurement: '',
     field: '',
@@ -90,6 +93,7 @@ const PanelForm: React.FC = () => {
             type: panel.type,
             dataSourceId: panel.queries?.[0]?.dataSourceId,
             queryText: panel.queries?.[0]?.query,
+            refreshInterval: panel.refreshInterval || 10000,
             options: {
               measurement: panel.options?.measurement || '',
               field: panel.options?.field || '',
@@ -160,7 +164,7 @@ const PanelForm: React.FC = () => {
     const { name, value } = e.target;
     setPanelData(prev => ({
       ...prev,
-      [name]: value
+      [name]: name === 'refreshInterval' ? parseInt(value) : value
     }));
   };
 
@@ -291,6 +295,30 @@ const PanelForm: React.FC = () => {
                 <option value="table">Table</option>
                 <option value="chord-diagram">Chord Diagram</option>
               </select>
+            </div>
+
+            {/* Refresh Interval Selection */}
+            <div>
+              <label htmlFor="refreshInterval" className="block text-sm font-medium text-gray-700">
+                Refresh Interval
+              </label>
+              <select
+                id="refreshInterval"
+                name="refreshInterval"
+                value={panelData.refreshInterval || 10000}
+                onChange={handleInputChange}
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+              >
+                {TIMEOUT_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-sm text-gray-500">
+                How often this panel should refresh its data. For panels like hostname status, 
+                you can set longer intervals and use the reload button for real-time updates.
+              </p>
             </div>
           </div>
         </div>
@@ -520,4 +548,4 @@ const PanelForm: React.FC = () => {
   );
 };
 
-export default PanelForm; 
+export default PanelForm;

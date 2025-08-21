@@ -21,6 +21,7 @@ model User {
   alertRules   AlertRule[]
   ansibleConfigs AnsibleConfig[]
   variables    Variable[]
+  cdpDiscoveries CdpDiscovery[]
 }
 
 model DataSource {
@@ -89,6 +90,7 @@ model Visualization {
   dataSourceId  String?
   dashboardId   String?  // Reference to parent dashboard (null if this is a dashboard)
   position      Json?    // Position in dashboard (x, y, w, h)
+  refreshInterval Int?   @default(10000) // Refresh interval in milliseconds (default 10 seconds)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   dataSource    DataSource? @relation(fields: [dataSourceId], references: [id])
@@ -137,4 +139,87 @@ model DashboardVariable {
   dashboardId String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+/// CDP Discovery Models
+enum DiscoveryStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model CdpDiscovery {
+  id           String           @id @default(uuid())
+  name         String?
+  seedIps      Json
+  status       DiscoveryStatus  @default(PENDING)
+  isSaved      Boolean          @default(false)
+  options      Json?
+  graph        Json?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  errorMessage String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  userId       String?
+  user         User?            @relation(fields: [userId], references: [id])
+  nodes        CdpNode[]
+  links        CdpLink[]
+
+  @@index([status])
+  @@index([isSaved])
+}
+
+model CdpNode {
+  id         String       @id @default(uuid())
+  discoveryId String
+  hostname   String?
+  mgmtIp     String?
+  vendor     String?
+  platform   String?
+  model      String?
+  osVersion  String?
+  site       String?
+  raw        Json?
+  discovery  CdpDiscovery @relation(fields: [discoveryId], references: [id], onDelete: Cascade)
+  interfaces CdpInterface[]
+  srcLinks   CdpLink[]    @relation("SrcNode")
+  dstLinks   CdpLink[]    @relation("DstNode")
+
+  @@index([discoveryId])
+  @@index([mgmtIp])
+}
+
+model CdpInterface {
+  id          String  @id @default(uuid())
+  nodeId      String
+  name        String
+  description String?
+  mac         String?
+  vlan        String?
+  speed       Int?
+  raw         Json?
+  node        CdpNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([nodeId])
+}
+
+model CdpLink {
+  id              String      @id @default(uuid())
+  discoveryId     String
+  srcNodeId       String
+  dstNodeId       String
+  srcInterfaceId  String?
+  dstInterfaceId  String?
+  linkType        String?     @default("cdp")
+  speed           Int?
+  raw             Json?
+  discovery       CdpDiscovery @relation(fields: [discoveryId], references: [id], onDelete: Cascade)
+  srcNode         CdpNode     @relation("SrcNode", fields: [srcNodeId], references: [id], onDelete: Cascade)
+  dstNode         CdpNode     @relation("DstNode", fields: [dstNodeId], references: [id], onDelete: Cascade)
+
+  @@index([discoveryId])
+  @@index([srcNodeId])
+  @@index([dstNodeId])
 }

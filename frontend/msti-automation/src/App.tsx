@@ -20,6 +20,9 @@ import InventoryList from './pages/automation/ansible/inventory/InventoryList'
 import InventoryForm from './pages/automation/ansible/inventory/InventoryForm'
 import ScenarioList from './pages/automation/ansible/scenario/ScenarioList'
 import ScenarioForm from './pages/automation/ansible/scenario/ScenarioForm'
+import DiscoveryList from './pages/automation/discovery/DiscoveryList'
+import NewDiscovery from './pages/automation/discovery/NewDiscovery'
+import DiscoveryDetail from './pages/automation/discovery/DiscoveryDetail'
 import Login from './pages/Login'
 import { SourceProvider } from './context/SourceContext'
 import { ApiProvider } from './context/ApiContext'
@@ -105,6 +108,11 @@ function App() {
                     <Route path="/automation/ansible/scenario" element={<ScenarioList />} />
                     <Route path="/automation/ansible/scenario/new" element={<ScenarioForm />} />
                     <Route path="/automation/ansible/scenario/:id" element={<ScenarioForm />} />
+
+                    {/* CDP Discovery Routes */}
+                    <Route path="/automation/cdp" element={<DiscoveryList />} />
+                    <Route path="/automation/cdp/new" element={<NewDiscovery />} />
+                    <Route path="/automation/cdp/:id" element={<DiscoveryDetail />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>

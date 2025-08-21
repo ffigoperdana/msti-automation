@@ -41,7 +41,9 @@ const NewDashboard: React.FC<NewDashboardProps> = ({ dataSourceId }) => {
 
       if (response && response.data) {
         setQueryResult({
+          state: 'Done',
           series: [{
+            name: 'Query Result', // Add missing name property
             fields: [
               { 
                 name: 'time', 

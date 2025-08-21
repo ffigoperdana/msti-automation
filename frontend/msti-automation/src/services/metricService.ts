@@ -122,9 +122,11 @@ class MetricService {
     }
   }
 
-  async executePanelQuery(id: string) {
+  // Add to metricService class
+  async executePanelQuery(panelId: string, forceRefresh: boolean = false) {
     try {
-      const response = await api.post(`/visualizations/panels/${id}/query`);
+      const url = `/visualizations/panels/${panelId}/query${forceRefresh ? '?forceRefresh=true' : ''}`;
+      const response = await api.post(url);
       return response.data;
     } catch (error) {
       console.error('Error executing panel query:', error);
@@ -323,4 +325,4 @@ class MetricService {
 
 }
 
-export default new MetricService(); 
+export default new MetricService();
