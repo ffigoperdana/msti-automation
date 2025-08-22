@@ -52,6 +52,8 @@ def main():
                 "source": fr,
                 "target": to,
                 "linkType": "cdp",
+                "srcIfName": c.get("from_if"),
+                "dstIfName": c.get("to_if"),
             })
 
     print(json.dumps({"nodes": nodes, "links": links}), flush=True)

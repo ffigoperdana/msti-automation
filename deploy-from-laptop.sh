@@ -68,7 +68,11 @@ check_vps_connection() {
 # Get latest deployment tag
 get_latest_deployment() {
     log "Fetching latest deployment tags..."
-    git fetch --tags > /dev/null 2>&1
+    # Prevent interactive credential prompts that can hang in CI/terminal
+    # Fail fast if fetch cannot authenticate or network unavailable, then continue with local tags
+    if ! GIT_TERMINAL_PROMPT=0 git fetch --tags --prune --quiet > /dev/null 2>&1; then
+        warning "git fetch --tags failed or timed out. Using local tags only."
+    fi
     
     LATEST_TAG=$(git tag -l "deploy-*" | sort -V | tail -n1)
     CURRENT_DEPLOYED=$(cat .last-deployed 2>/dev/null || echo "none")

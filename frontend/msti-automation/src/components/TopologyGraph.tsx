@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import useCdpStore from '../store/cdpStore';
 
 type Node = { id: string; label: string; mgmtIp?: string; type?: string };
-type Link = { id: string; source: string; target: string; linkType?: string };
+type Link = { id: string; source: string; target: string; linkType?: string; srcIfName?: string; dstIfName?: string };
 
 interface TopologyGraphProps {
   nodes: Node[];
@@ -61,9 +61,12 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
     router: '/cisco_icons/router.jpg',
     switch: '/cisco_icons/switch.jpg',
     firewall: '/cisco_icons/firewall.jpg',
+    server: '/cisco_icons/www server.jpg',
   }), []);
-  const iconFor = (t?: string) => {
+  const iconFor = (t?: string, label?: string) => {
     const kind = (t || '').toLowerCase();
+    const name = (label || '').toLowerCase();
+    if (name.includes('esxi') || name.includes('vmware') || name.includes('esx')) return icons.server;
     if (kind.includes('switch')) return icons.switch;
     if (kind.includes('firewall')) return icons.firewall;
     return icons.router;
@@ -158,17 +161,25 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
             const t = positions[l.target];
             if (!s || !t) return null;
             return (
-              <line key={l.id} x1={s.x} y1={s.y} x2={t.x} y2={t.y} stroke="#007acc" strokeWidth={3} strokeDasharray="5,5" />
+              <g key={l.id}>
+                <line x1={s.x} y1={s.y} x2={t.x} y2={t.y} stroke="#007acc" strokeWidth={3} strokeDasharray="5,5" />
+                {l.srcIfName && (
+                  <text x={(s.x*2 + t.x)/3} y={(s.y*2 + t.y)/3 - 6} fontSize="10" fill="#4b5563" textAnchor="middle">{l.srcIfName}</text>
+                )}
+                {l.dstIfName && (
+                  <text x={(t.x*2 + s.x)/3} y={(t.y*2 + s.y)/3 - 6} fontSize="10" fill="#4b5563" textAnchor="middle">{l.dstIfName}</text>
+                )}
+              </g>
             );
           })}
         </svg>
         {nodes.map((n) => {
           const p = positions[n.id] || { x: 100, y: 100 };
           return (
-            <div key={n.id} onMouseDown={(e) => onMouseDownNode(e, n.id)} className="device absolute bg-white border-2 border-gray-200 rounded-lg p-2 text-center shadow cursor-move hover:shadow-lg transition-shadow" style={{ left: p.x - 60, top: p.y - 50, width: 120, userSelect: 'none', zIndex: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-              <img src={iconFor(n.type)} alt={n.type || 'device'} draggable={false} onDragStart={(ev) => ev.preventDefault()} className="device-icon" style={{ width: 40, height: 40, margin: '0 auto 6px', objectFit: 'contain', pointerEvents: 'none' }} />
-              <div className="device-hostname font-semibold text-xs" title={n.label}>{n.label}</div>
-              <div className="device-ip text-[10px] text-gray-600">{n.mgmtIp || n.id}</div>
+            <div key={n.id} onMouseDown={(e) => onMouseDownNode(e, n.id)} className="device absolute bg-white border-2 border-gray-200 rounded-lg p-2 text-center shadow cursor-move hover:shadow-lg transition-shadow" style={{ left: p.x - 70, top: p.y - 55, width: 140, userSelect: 'none', zIndex: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+              <img src={iconFor(n.type, n.label)} alt={n.type || 'device'} draggable={false} onDragStart={(ev) => ev.preventDefault()} className="device-icon" style={{ width: 40, height: 40, margin: '0 auto 6px', objectFit: 'contain', pointerEvents: 'none' }} />
+              <div className="device-hostname font-semibold text-xs" title={n.label} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.label}</div>
+              <div className="device-ip text-[10px] text-gray-600" title={n.mgmtIp || n.id} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.mgmtIp || n.id}</div>
               <div className="device-type text-[9px] mt-1 inline-block px-2 py-0.5 rounded bg-blue-600 text-white uppercase">{(n.type || 'device')}</div>
             </div>
           );

@@ -191,6 +191,19 @@ class NetworkTopologyDiscovery:
                         neighbors.append(cur)
                     cur = {"hostname": line.split(":", 1)[1].strip()}
                 else:
+                    # Local Interface and remote Port ID
+                    if line.startswith("Interface:"):
+                        # Examples:
+                        # Interface: mgmt0, Port ID (outgoing port): GigabitEthernet0/28
+                        m = re.search(r"Interface:\s*([^,]+),\s*Port ID.*?:\s*(.+)$", line, re.IGNORECASE)
+                        if m:
+                            cur["local_interface"] = m.group(1).strip()
+                            cur["port_id"] = m.group(2).strip()
+                        else:
+                            # Fallback: only local interface
+                            m2 = re.search(r"Interface:\s*(.+)$", line, re.IGNORECASE)
+                            if m2:
+                                cur["local_interface"] = m2.group(1).strip()
                     # Tangkap IP dari berbagai format baris (IP address / IPv4 address / dsb.)
                     if "address" in line.lower():
                         ipm = re.search(r"(\d+\.\d+\.\d+\.\d+)", line)
@@ -245,6 +258,8 @@ class NetworkTopologyDiscovery:
             self.connections.append({
                 "from": start_ip,
                 "to": nid,
+                "from_if": n.get("local_interface"),
+                "to_if": n.get("port_id"),
                 "from_hostname": device_info["hostname"],
                 "to_hostname": n.get("hostname", "Unknown")
             })
@@ -322,6 +337,8 @@ class NetworkTopologyDiscovery:
                 self.connections.append({
                     "from": ip,
                     "to": nip,
+                    "from_if": n.get("local_interface"),
+                    "to_if": n.get("port_id"),
                     "from_hostname": info["hostname"],
                     "to_hostname": n.get("hostname", "Unknown")
                 })
