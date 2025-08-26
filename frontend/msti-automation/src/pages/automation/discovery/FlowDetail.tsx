@@ -25,8 +25,8 @@ const FlowDetail: React.FC = () => {
       { id: '11.11.11.11', label: '11.11.11.11', mgmtIp: '11.11.11.11', type: 'vm', role: 'destination' as const, chips: ['tcp/80'] },
     ];
     const fallbackLinks = [
-      { id: 'a', source: '10.10.10.10', target: 'TELEMETRY-SW', linkType: 'flow', srcIfName: 'tcp/80 (Source)', dstIfName: 'vmnic5' },
-      { id: 'b', source: 'TELEMETRY-SW', target: '11.11.11.11', linkType: 'flow', srcIfName: 'vmnic4', dstIfName: 'tcp/80 (Destination)' },
+      { id: 'a', source: '10.10.10.10', target: 'TELEMETRY-SW', linkType: 'flow', srcIfName: 'vmnic5', dstIfName: 'Eth1/1' },
+      { id: 'b', source: 'TELEMETRY-SW', target: '11.11.11.11', linkType: 'flow', srcIfName: 'Eth1/2', dstIfName: 'vmnic4' },
     ];
 
     const run = async () => {
@@ -52,8 +52,8 @@ const FlowDetail: React.FC = () => {
           const g = baseNodes.map(n => n.id === 'TELEMETRY-SW' ? { ...n, chips: chipsGateway } : n);
           setNodes(g);
           setLinks([
-            { id: 'a', source: '10.10.10.10', target: 'TELEMETRY-SW', linkType: 'flow', srcIfName: 'tcp/80 (Source)', dstIfName: swToVm1?.dstIfName || 'vmnic5' },
-            { id: 'b', source: 'TELEMETRY-SW', target: '11.11.11.11', linkType: 'flow', srcIfName: swToVm2?.srcIfName || 'Eth1/2', dstIfName: 'tcp/80 (Destination)' },
+            { id: 'a', source: '10.10.10.10', target: 'TELEMETRY-SW', linkType: 'flow', srcIfName: swToVm1?.dstIfName || 'vmnic5', dstIfName: swToVm1?.srcIfName || 'Eth1/1' },
+            { id: 'b', source: 'TELEMETRY-SW', target: '11.11.11.11', linkType: 'flow', srcIfName: swToVm2?.srcIfName || 'Eth1/2', dstIfName: swToVm2?.dstIfName || 'vmnic4' },
           ]);
           return;
         } catch {
