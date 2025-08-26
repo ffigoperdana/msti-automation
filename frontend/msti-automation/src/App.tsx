@@ -20,6 +20,9 @@ import InventoryList from './pages/automation/ansible/inventory/InventoryList'
 import InventoryForm from './pages/automation/ansible/inventory/InventoryForm'
 import ScenarioList from './pages/automation/ansible/scenario/ScenarioList'
 import ScenarioForm from './pages/automation/ansible/scenario/ScenarioForm'
+import FlowList from './pages/automation/discovery/FlowList'
+import FlowNew from './pages/automation/discovery/FlowNew'
+import FlowDetail from './pages/automation/discovery/FlowDetail'
 import DiscoveryList from './pages/automation/discovery/DiscoveryList'
 import NewDiscovery from './pages/automation/discovery/NewDiscovery'
 import DiscoveryDetail from './pages/automation/discovery/DiscoveryDetail'
@@ -113,6 +116,11 @@ function App() {
                     <Route path="/automation/cdp" element={<DiscoveryList />} />
                     <Route path="/automation/cdp/new" element={<NewDiscovery />} />
                     <Route path="/automation/cdp/:id" element={<DiscoveryDetail />} />
+
+                    {/* Flow Analytic (dummy FE) */}
+                    <Route path="/automation/flow" element={<FlowList />} />
+                    <Route path="/automation/flow/new" element={<FlowNew />} />
+                    <Route path="/automation/flow/detail" element={<FlowDetail />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>

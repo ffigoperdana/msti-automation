@@ -108,25 +108,57 @@ class NetworkTopologyDiscovery:
             pass
         # 3) fallback
         return f"Router-{ip.split('.')[-1]}" if ip else "Unknown"
-    def _guess_type_from_platform(self, platform_text: str) -> str:
-        if not platform_text:
+    def _classify_device_type(self, text: str) -> str:
+        """Heuristik klasifikasi device berdasarkan string platform/versi/model."""
+        if not text:
             return "router"
-        p = platform_text.upper()
-        if any(k in p for k in ["WS-C", "CATALYST", "C2960", "C3560", "C3850", "C9200", "C9300", "NEXUS"]):
+        t = text.upper()
+        # Explicit exceptions first
+        if "CSR 1000V" in t or "CLOUD SERVICES ROUTER" in t:
+            return "router"
+        # VM / Hypervisor (tandai sebagai VM sesuai permintaan)
+        if any(k in t for k in [
+            "ESXI", "VMWARE ESXI", "VMNIC", "HYPER-V", "KVM", "PROXMOX",
+            "VSPHERE", "VIRTUAL MACHINE", "GUEST OS", "VMWARE"
+        ]):
+            return "vm"
+        # Data center & campus switches
+        if any(k in t for k in [
+            "NEXUS", "N9K", "N7K", "N3K", "N5K", "N2K",
+            "WS-C", "C9200", "C9300", "C9400", "C9500", "C9600", "C2960", "C3560", "C3750", "CATALYST SWITCH", "CATALYST 9" 
+        ]):
             return "switch"
-        if any(k in p for k in ["ASA", "FIREPOWER", "FIREWALL"]):
+        # Security appliances
+        if any(k in t for k in ["ASA", "FIREPOWER", "FTD", "NGFW"]):
             return "firewall"
-        if any(k in p for k in ["ISR", "ASR", "ROUTER"]):
+        # Wireless (AP/WLC)
+        if any(k in t for k in ["AIRONET", "MR", "MERAKI MR", "CATALYST 910", "WLC", "WIRELESS LAN CONTROLLER"]):
+            return "wireless"
+        # Servers / UCS
+        if any(k in t for k in ["UCS", "B-SERIES", "C-SERIES", "HYPERFLEX", "HX-", "UCS-SERVER"]):
+            return "server"
+        # Meraki Switches
+        if any(k in t for k in ["MERAKI MS", " MS1", " MS2", " MS3", " MS4"]):
+            return "switch"
+        # Meraki Routers (MX)
+        if " MERAKI MX" in t or re.search(r"\bMX\d+\b", t):
+            return "router"
+        # WAN Edge Routers (ISR/ASR/CSR/Catalyst 8k)
+        if any(k in t for k in ["ISR", "ASR", "CSR 1000V", "C8K", "C8300", "C8500", "C8200", "ROUTER"]):
             return "router"
         return "router"
 
+    def _guess_type_from_platform(self, platform_text: str) -> str:
+        return self._classify_device_type(platform_text)
+
     def _neighbor_identifier(self, neighbor: dict) -> str:
-        """Identifier stabil untuk node neighbor; gunakan IP jika ada, selain itu hostname prefiks 'HOST:'"""
+        """Identifier stabil untuk node neighbor; gunakan IP jika ada, tambahkan suffix interface agar unik."""
         ip = neighbor.get("ip")
+        suffix = neighbor.get("port_id") or neighbor.get("local_interface")
         if ip:
-            return ip
+            return f"{ip}#{suffix}" if suffix else ip
         hostname = neighbor.get("hostname", "Unknown")
-        return f"HOST:{hostname}"
+        return f"HOST:{hostname}#{suffix}" if suffix else f"HOST:{hostname}"
     def _detect_type_from_pid(self, text: str) -> str:
         """Map PID string to device type."""
         pid = text.upper()
@@ -146,16 +178,37 @@ class NetworkTopologyDiscovery:
             # Format umum: NAME: "Chassis", ...\nPID: <PID>, VID: ..., SN: ...
             pid_match = re.search(r"PID:\s*([\w-]+)", inv, re.IGNORECASE)
             if pid_match:
-                return self._detect_type_from_pid(pid_match.group(1))
+                return self._classify_device_type(pid_match.group(1))
             # Fallback kuat ke versi
             ver = self.send_command(connection, "show version")
-            if "Catalyst" in ver or "WS-C" in ver or "Switch" in ver:
-                return "switch"
-            if "ASA" in ver or "Firewall" in ver or "Firepower" in ver:
-                return "firewall"
-            return "router"
+            return self._classify_device_type(ver)
         except Exception:
             return "router"
+
+    def get_arp_detail(self, ssh):
+        """Parse `show ip arp detail` → list of {ip, mac, iface, phys_iface}"""
+        entries = []
+        try:
+            stdin, stdout, stderr = ssh.exec_command("show ip arp detail")
+            out = stdout.read().decode()
+            for line in out.splitlines():
+                line = line.strip()
+                # Example row:
+                # 11.11.11.11  00:00:18  000c.29b8.afe0  Ethernet1/2  Ethernet1/2  ...
+                m = re.match(r"^(\d+\.\d+\.\d+\.\d+)\s+\S+\s+(\S+)\s+(\S+)\s+(\S+)", line)
+                if m:
+                    ip, mac, iface, phys = m.group(1), m.group(2), m.group(3), m.group(4)
+                    if mac.upper() == 'INCOMPLETE':
+                        mac = None
+                    entries.append({
+                        "ip": ip,
+                        "mac": mac,
+                        "iface": iface,
+                        "phys_iface": phys,
+                    })
+        except Exception as e:
+            log(f"Error getting ARP detail: {e}")
+        return entries
 
     def get_device_info(self, ssh, ip):
         """Return hostname and device-type without invoke_shell()"""
@@ -167,11 +220,7 @@ class NetworkTopologyDiscovery:
 
             stdin, stdout, stderr = ssh.exec_command("show version")
             ver_out = stdout.read().decode()
-            dtype = "router"
-            if "Catalyst" in ver_out or "WS-C" in ver_out or "Switch" in ver_out:
-                dtype = "switch"
-            elif "ASA" in ver_out or "Firewall" in ver_out:
-                dtype = "firewall"
+            dtype = self._classify_device_type(ver_out)
             return {"ip": ip, "hostname": hostname, "device_type": dtype}
         except Exception as e:
             log(f"Error getting device info for {ip}: {e}")
@@ -247,6 +296,7 @@ class NetworkTopologyDiscovery:
         log(f"Neighbors found for {start_ip}: {len(neighbors)}")
 
         # Topologi dasar: device utama + setiap neighbor sebagai node placeholder
+        device_info["arp_entries"] = self.get_arp_detail(ssh)
         topology = [{"device": device_info, "neighbors": neighbors}]
 
         for n in neighbors:
@@ -322,6 +372,7 @@ class NetworkTopologyDiscovery:
                 base["hostname"] = self.detect_hostname(ssh=ssh, ip=ip)
                 info = base
             neighbors = self.get_cdp_neighbors(ssh)
+            info["arp_entries"] = self.get_arp_detail(ssh)
             # update atau tambah node untuk ip ini
             found_idx = next((i for i, d in enumerate(topology) if d['device'].get('ip') == ip), None)
             if found_idx is not None:

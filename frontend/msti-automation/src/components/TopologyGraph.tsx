@@ -1,7 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useCdpStore from '../store/cdpStore';
 
-type Node = { id: string; label: string; mgmtIp?: string; type?: string };
+type ArpEntry = { ip: string; mac?: string; iface?: string; phys_iface?: string };
+type NodeRole = 'source' | 'destination' | 'gateway';
+type Node = {
+  id: string;
+  label: string;
+  mgmtIp?: string;
+  type?: string;
+  arp?: ArpEntry[];
+  role?: NodeRole;
+  chips?: string[]; // additional small pills (e.g., ports or interfaces)
+};
 type Link = { id: string; source: string; target: string; linkType?: string; srcIfName?: string; dstIfName?: string };
 
 interface TopologyGraphProps {
@@ -16,10 +26,16 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
   const { updatePositions } = useCdpStore();
   const [connectionsVisible, setConnectionsVisible] = useState(true);
 
+  // Canvas and card dimensions
+  const CANVAS_W = 1000;
+  const CANVAS_H = 500;
+  const CARD_W = 180;
+  const CARD_H = 130;
+
   const computedPositions = useMemo(() => {
     if (!nodes.length) return {} as Record<string, { x: number; y: number }>;
-    const rectW = 800;
-    const rectH = 400;
+    const rectW = CANVAS_W;
+    const rectH = CANVAS_H;
     const margin = 100;
     const n = nodes.length;
     const pos: Record<string, { x: number; y: number }> = {};
@@ -62,11 +78,12 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
     switch: '/cisco_icons/switch.jpg',
     firewall: '/cisco_icons/firewall.jpg',
     server: '/cisco_icons/www server.jpg',
+    vm: '/cisco_icons/standard host.jpg',
   }), []);
   const iconFor = (t?: string, label?: string) => {
     const kind = (t || '').toLowerCase();
     const name = (label || '').toLowerCase();
-    if (name.includes('esxi') || name.includes('vmware') || name.includes('esx')) return icons.server;
+    if (name.includes('esxi') || name.includes('vmware') || name.includes('esx') || kind === 'vm') return icons.vm;
     if (kind.includes('switch')) return icons.switch;
     if (kind.includes('firewall')) return icons.firewall;
     return icons.router;
@@ -75,7 +92,7 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
   const resetView = () => setPositions(computedPositions);
   const toggleConnections = () => setConnectionsVisible(v => !v);
   const centerDevices = () => setPositions(() => {
-    const rect = { width: 800, height: 400 };
+    const rect = { width: CANVAS_W, height: CANVAS_H };
     const nodesEl = nodes.map((n) => ({ id: n.id, w: 120, h: 100 }));
     const pos: Record<string, { x: number; y: number }> = {};
     nodesEl.forEach((nEl, idx) => {
@@ -110,8 +127,12 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    const x = Math.max(0, Math.min(800, mouseX - dragOffset.dx));
-    const y = Math.max(0, Math.min(400, mouseY - dragOffset.dy));
+    const minX = CARD_W / 2;
+    const maxX = CANVAS_W - CARD_W / 2;
+    const minY = CARD_H / 2;
+    const maxY = CANVAS_H - CARD_H / 2;
+    const x = Math.max(minX, Math.min(maxX, mouseX - dragOffset.dx));
+    const y = Math.max(minY, Math.min(maxY, mouseY - dragOffset.dy));
     setPositions((prev) => ({ ...prev, [draggingId]: { x, y } }));
   }, [draggingId, dragOffset.dx, dragOffset.dy]);
   const onMouseUpWindow = useCallback(() => setDraggingId(null), []);
@@ -120,8 +141,12 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    const x = Math.max(0, Math.min(800, mouseX - dragOffset.dx));
-    const y = Math.max(0, Math.min(400, mouseY - dragOffset.dy));
+    const minX = CARD_W / 2;
+    const maxX = CANVAS_W - CARD_W / 2;
+    const minY = CARD_H / 2;
+    const maxY = CANVAS_H - CARD_H / 2;
+    const x = Math.max(minX, Math.min(maxX, mouseX - dragOffset.dx));
+    const y = Math.max(minY, Math.min(maxY, mouseY - dragOffset.dy));
     setPositions((prev) => ({ ...prev, [draggingId]: { x, y } }));
     updatePositions({ [draggingId]: { x, y } });
   };
@@ -152,22 +177,45 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
         ref={canvasRef}
         onMouseMove={onMouseMoveCanvas}
         onMouseUp={() => setDraggingId(null)}
-        className="network-canvas relative mx-auto select-none overflow-hidden"
-        style={{ width: 800, height: 400, background: '#f8f9fa', borderRadius: 10, border: '2px solid #e9ecef' }}
+        className="network-canvas relative mx-auto select-none overflow-visible"
+        style={{ width: CANVAS_W, height: CANVAS_H, background: '#f8f9fa', borderRadius: 10, border: '2px solid #e9ecef' }}
       >
-        <svg width="100%" height="400" style={{ position: 'absolute', top: 0, left: 0, zIndex: 1 }}>
+        <svg width="100%" height={CANVAS_H} style={{ position: 'absolute', top: 0, left: 0, zIndex: 1 }}>
           {connectionsVisible && links.map((l) => {
             const s = positions[l.source];
             const t = positions[l.target];
             if (!s || !t) return null;
+
+            // Perpendicular offset so labels tidak tertutup card
+            const dx = t.x - s.x;
+            const dy = t.y - s.y;
+            const len = Math.max(1, Math.hypot(dx, dy));
+            const nx = -dy / len;
+            const ny = dx / len;
+            const off = 14; // px offset
+
+            // 35% dari source dan 65% mendekati target
+            const sx = s.x + dx * 0.35 + nx * off;
+            const sy = s.y + dy * 0.35 + ny * off;
+            const tx = s.x + dx * 0.65 - nx * off;
+            const ty = s.y + dy * 0.65 - ny * off;
+
+            const labelStyle: React.CSSProperties = {
+              fontSize: 10,
+              fill: '#4b5563',
+              paintOrder: 'stroke',
+              stroke: '#ffffff',
+              strokeWidth: 3,
+            } as any;
+
             return (
               <g key={l.id}>
                 <line x1={s.x} y1={s.y} x2={t.x} y2={t.y} stroke="#007acc" strokeWidth={3} strokeDasharray="5,5" />
                 {l.srcIfName && (
-                  <text x={(s.x*2 + t.x)/3} y={(s.y*2 + t.y)/3 - 6} fontSize="10" fill="#4b5563" textAnchor="middle">{l.srcIfName}</text>
+                  <text x={sx} y={sy} style={labelStyle} textAnchor="middle" dominantBaseline="central">{l.srcIfName}</text>
                 )}
                 {l.dstIfName && (
-                  <text x={(t.x*2 + s.x)/3} y={(t.y*2 + s.y)/3 - 6} fontSize="10" fill="#4b5563" textAnchor="middle">{l.dstIfName}</text>
+                  <text x={tx} y={ty} style={labelStyle} textAnchor="middle" dominantBaseline="central">{l.dstIfName}</text>
                 )}
               </g>
             );
@@ -176,11 +224,39 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
         {nodes.map((n) => {
           const p = positions[n.id] || { x: 100, y: 100 };
           return (
-            <div key={n.id} onMouseDown={(e) => onMouseDownNode(e, n.id)} className="device absolute bg-white border-2 border-gray-200 rounded-lg p-2 text-center shadow cursor-move hover:shadow-lg transition-shadow" style={{ left: p.x - 70, top: p.y - 55, width: 140, userSelect: 'none', zIndex: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+            <div key={n.id} onMouseDown={(e) => onMouseDownNode(e, n.id)} className="device absolute bg-white border-2 border-gray-200 rounded-lg p-2 text-center shadow cursor-move hover:shadow-lg transition-shadow group" style={{ left: p.x - 80, top: p.y - 65, width: 180, userSelect: 'none', zIndex: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
               <img src={iconFor(n.type, n.label)} alt={n.type || 'device'} draggable={false} onDragStart={(ev) => ev.preventDefault()} className="device-icon" style={{ width: 40, height: 40, margin: '0 auto 6px', objectFit: 'contain', pointerEvents: 'none' }} />
               <div className="device-hostname font-semibold text-xs" title={n.label} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.label}</div>
               <div className="device-ip text-[10px] text-gray-600" title={n.mgmtIp || n.id} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.mgmtIp || n.id}</div>
-              <div className="device-type text-[9px] mt-1 inline-block px-2 py-0.5 rounded bg-blue-600 text-white uppercase">{(n.type || 'device')}</div>
+              <div className="flex items-center justify-center gap-2 mt-1">
+                <div className="device-type text-[9px] inline-block px-2 py-0.5 rounded bg-blue-600 text-white uppercase">{(n.type || 'device')}</div>
+                {n.role && (
+                  <div className={`text-[9px] inline-block px-2 py-0.5 rounded uppercase ${n.role==='source' ? 'bg-green-600 text-white' : n.role==='destination' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-white'}`}>{n.role}</div>
+                )}
+              </div>
+              {n.chips && n.chips.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-1">
+                  {n.chips.map((c, i) => (
+                    <span key={i} className="text-[9px] px-2 py-0.5 rounded bg-gray-100 border">{c}</span>
+                  ))}
+                </div>
+              )}
+              {n.arp && n.arp.length > 0 && (
+                <div className="absolute left-1/2 -translate-x-1/2 mt-2 bg-black/90 text-white text-[10px] rounded p-2 opacity-0 group-hover:opacity-100 pointer-events-none shadow-lg" style={{ top: '100%', minWidth: 220 }}>
+                  <div className="font-semibold text-[11px] mb-1">ARP Entries</div>
+                  <div className="space-y-1 max-h-32 overflow-auto">
+                    {n.arp.slice(0,5).map((a, idx) => (
+                      <div key={idx} className="flex flex-col">
+                        <div><span className="text-gray-300">IP:</span> {a.ip}</div>
+                        {a.mac && <div><span className="text-gray-300">MAC:</span> {a.mac}</div>}
+                        <div><span className="text-gray-300">IF:</span> {a.phys_iface || a.iface}</div>
+                      </div>
+                    ))}
+                    {n.arp.length > 5 && <div className="text-gray-300">(+{n.arp.length - 5} more)</div>}
+                  </div>
+                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-0 h-0" style={{ borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderBottom: '6px solid rgba(0,0,0,0.9)' }} />
+                </div>
+              )}
             </div>
           );
         })}

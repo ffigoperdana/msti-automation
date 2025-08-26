@@ -31,16 +31,18 @@ def main():
         for entry in topo:
             dev = entry.get("device", {})
             ip = dev.get("ip")
-            if not ip or ip in nodes_map:
+            if not ip:
                 continue
             node = {
                 "id": ip,
                 "label": dev.get("hostname") or ip,
                 "mgmtIp": ip,
                 "type": dev.get("device_type") or "device",
+                "arp": dev.get("arp_entries") or [],
             }
-            nodes_map[ip] = True
-            nodes.append(node)
+            if ip not in nodes_map:
+                nodes_map[ip] = True
+                nodes.append(node)
 
     links = []
     for c in discovery.connections:
