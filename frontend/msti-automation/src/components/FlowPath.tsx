@@ -35,7 +35,6 @@ const FlowPath: React.FC<Props> = ({ nodes, links }) => {
   const cy = [120, 120, 120];
   const r = 26;
 
-  const byId: Record<string, FlowNode> = Object.fromEntries(nodes.map(n => [n.id, n]));
 
   const circleChip = (text: string, x: number, y: number) => (
     <g transform={`translate(${x},${y})`}>
@@ -56,7 +55,6 @@ const FlowPath: React.FC<Props> = ({ nodes, links }) => {
     );
   };
 
-  const nodeAt = (id: string) => nodes.find((n) => n.id === id)!;
 
   const linkElems = links.map((l) => {
     const sIdx = nodes.findIndex(n => n.id === l.source);
