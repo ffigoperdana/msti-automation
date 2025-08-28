@@ -7,11 +7,10 @@ import metricService from '../../services/metricService';
 // Tipe panel yang didukung
 const PANEL_TYPES = [
   { id: 'time-series', name: 'Time Series', icon: '📈' },
-  { id: 'bar-chart', name: 'Bar Chart', icon: '📊' },
   { id: 'gauge', name: 'Gauge', icon: '⏲️' },
-  { id: 'stat', name: 'Stat', icon: '📌' },
   { id: 'table', name: 'Table', icon: '🔢' },
-  { id: 'interface-status', name: 'Interface Status', icon: '🔌' },
+  { id: 'interface', name: 'Interface Status', icon: '🔌' },
+  { id: 'chord-diagram', name: 'Chord Diagram', icon: '🌐' },
 ];
 
 // Data interface untuk pemilihan
@@ -156,7 +155,7 @@ const NewDashboard: React.FC = () => {
 
   // Update queryText berdasarkan panel type, interface, dan time range
   useEffect(() => {
-    if (selectedPanel === 'interface-status') {
+    if (selectedPanel === 'interface') {
       const interfaceDetails = INTERFACE_OPTIONS.find(i => i.id === selectedInterface);
       const newQuery = `timeStart = uint(v: ${timeRange.from})
 timeStop = uint(v: ${timeRange.to})
@@ -188,7 +187,7 @@ from(bucket: "${selectedDataSource}")
       setApiData(response.data);
       
       // Update query text berdasarkan data yang diterima
-      if (selectedPanel === 'interface-status' && response.data.network_status) {
+      if (selectedPanel === 'interface' && response.data.network_status) {
         const interfaceData = response.data.network_status.find(
           (item: NetworkStatus) => item.interface_id === selectedInterface
         );
@@ -270,7 +269,7 @@ from(bucket: "${selectedDataSource}")
     const cleanMetricName = metricName.split(':').pop() || metricName;
     
     switch (panelType) {
-      case 'interface-status':
+      case 'interface':
         return `from(bucket: "${selectedDataSource}")
   |> range(start: duration(v: -1h))
   |> filter(fn: (r) => r["_measurement"] == "sys/intf")
@@ -280,7 +279,7 @@ from(bucket: "${selectedDataSource}")
   |> aggregateWindow(every: 10s, fn: last, createEmpty: false)
   |> yield(name: "last")`;
 
-      case 'timeseries':
+      case 'time-series':
         return `from(bucket: "${selectedDataSource}")
   |> range(start: duration(v: -1h))
   |> filter(fn: (r) => r["_measurement"] == "${cleanMetricName}")
@@ -288,7 +287,6 @@ from(bucket: "${selectedDataSource}")
   |> yield(name: "mean")`;
 
       case 'gauge':
-      case 'stat':
         return `from(bucket: "${selectedDataSource}")
 |> range(start: ${timeRange.from}, stop: ${timeRange.to})
 |> filter(fn: (r) => r["_measurement"] == "${cleanMetricName}")
@@ -301,6 +299,13 @@ from(bucket: "${selectedDataSource}")
 |> filter(fn: (r) => r["_measurement"] == "${cleanMetricName}")
 |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
 |> yield(name: "table")`;
+
+      case 'chord-diagram':
+        return `from(bucket: "${selectedDataSource}")
+|> range(start: ${timeRange.from}, stop: ${timeRange.to})
+|> filter(fn: (r) => r["_measurement"] == "${cleanMetricName}")
+|> aggregateWindow(every: 30s, fn: mean)
+|> yield(name: "chord")`;
 
       default:
         return '';
@@ -357,7 +362,7 @@ from(bucket: "${selectedDataSource}")
         },
         panels: [{
           title: panelData.title,
-          type: panelData.type || 'interface-status',
+          type: panelData.type || 'interface',
           description: panelData.description || '',
           width: 12,
           height: 8,

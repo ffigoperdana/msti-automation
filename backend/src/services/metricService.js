@@ -234,7 +234,7 @@ class MetricService {
 
       // Format response generically (tidak hardcode untuk interface status)
       const series = Object.entries(groupedData).map(([key, rows]) => {
-        const [measurement, field] = key.split('::');
+        const [measurement, field, interfaceId] = key.split('::');
         
         // Extract field name and type information
         const fieldName = field || '_value';
@@ -265,7 +265,47 @@ class MetricService {
             {
               name: "Time",
               type: "time",
-              values: rows.map(row => new Date(row._time).getTime()),
+              values: rows.map((row, index) => {
+                // Fix timestamp conversion - handle various InfluxDB timestamp formats
+                let timestamp = row._time;
+                let timeNum;
+                
+                if (typeof timestamp === 'string') {
+                  // Parse ISO string timestamp
+                  timeNum = new Date(timestamp).getTime();
+                } else if (typeof timestamp === 'number') {
+                  // Handle nanosecond timestamps from InfluxDB
+                  if (timestamp > 1000000000000000) {
+                    // Nanoseconds, convert to milliseconds
+                    timeNum = Math.floor(timestamp / 1000000);
+                  } else if (timestamp > 1000000000000) {
+                    // Already in milliseconds
+                    timeNum = timestamp;
+                  } else {
+                    // Seconds, convert to milliseconds
+                    timeNum = timestamp * 1000;
+                  }
+                } else if (timestamp instanceof Date) {
+                  timeNum = timestamp.getTime();
+                } else {
+                  // Fallback: try to parse as Date
+                  timeNum = new Date(timestamp).getTime();
+                }
+                
+                // Enhanced validation - check if timestamp is reasonable (not in future, not too old)
+                const now = Date.now();
+                const oneYearAgo = now - (365 * 24 * 60 * 60 * 1000);
+                const oneDayFromNow = now + (24 * 60 * 60 * 1000);
+                
+                if (isNaN(timeNum) || timeNum < oneYearAgo || timeNum > oneDayFromNow) {
+                  // Invalid timestamp: generate reasonable time sequence
+                  // Use current time minus (total rows - current index) minutes
+                  timeNum = now - ((rows.length - index) * 60000);
+                  console.warn(`MetricService: Invalid timestamp ${timestamp} at index ${index}, using fallback: ${new Date(timeNum)}`);
+                }
+                
+                return timeNum;
+              }),
               config: {
                 unit: "time"
               }
@@ -274,9 +314,13 @@ class MetricService {
               name: fieldName,
               type: fieldType,
               values: fieldValues,
-              labels: this.extractLabels(rows[0]),
+              labels: {
+                ...this.extractLabels(rows[0]),
+                id: interfaceId // Explicitly add interface ID to labels
+              },
               config: {
-                unit: fieldType === 'string' ? 'status' : (fieldName.includes('percent') || fieldName.includes('usage') ? 'percent' : 'none')
+                unit: fieldType === 'string' ? 'status' : (fieldName.includes('percent') || fieldName.includes('usage') ? 'percent' : 'none'),
+                interfaceId: interfaceId // Also add to config for backward compatibility
               }
             }
           ],
@@ -309,7 +353,7 @@ class MetricService {
 
     // Format each series
     const series = Object.entries(groupedData).map(([key, rows]) => {
-      const [measurement, field] = key.split('::');
+      const [measurement, field, interfaceId] = key.split('::');
       
       return {
         name: measurement,
@@ -337,9 +381,13 @@ class MetricService {
               frame: "float64",
               nullable: true
             },
-            labels: this.extractLabels(rows[0]),
+            labels: {
+              ...this.extractLabels(rows[0]),
+              id: interfaceId // Add interface ID to labels
+            },
             config: {
-              unit: "percent"
+              unit: "percent",
+              interfaceId: interfaceId // Also add to config
             },
             values: rows.map(row => row._value)
           }
@@ -366,15 +414,24 @@ class MetricService {
     };
   }
 
+  // Add this method right after the formatFluxQueryResult method (around line 408)
   groupDataByMeasurement(data) {
-    return data.reduce((acc, row) => {
-      const key = `${row._measurement}::${row._field}`;
-      if (!acc[key]) {
-        acc[key] = [];
+    const grouped = {};
+    
+    data.forEach(row => {
+      const measurement = row._measurement || 'unknown';
+      const field = row._field || 'value';
+      const interfaceId = row.id || row.interface || 'unknown'; // Add interface ID to grouping
+      const key = `${measurement}::${field}::${interfaceId}`; // Include interface ID in key
+      
+      if (!grouped[key]) {
+        grouped[key] = [];
       }
-      acc[key].push(row);
-      return acc;
-    }, {});
+      
+      grouped[key].push(row);
+    });
+    
+    return grouped;
   }
 
   generateRequestId() {
@@ -404,4 +461,4 @@ class MetricService {
   }
 }
 
-export default new MetricService(); 
+export default new MetricService();

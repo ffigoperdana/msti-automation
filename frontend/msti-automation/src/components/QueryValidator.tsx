@@ -126,6 +126,45 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
           console.log('📊 Result type:', typeof executeResult);
           console.log('📊 Result length (if array):', Array.isArray(executeResult) ? executeResult.length : 'Not array');
           
+          // Debug untuk TimeSeries - tampilkan struktur data lebih detail
+          if (panelType === 'timeseries' && executeResult) {
+            console.log('🔍 TIMESERIES DEBUG - Full result structure:');
+            console.log('📊 executeResult:', JSON.stringify(executeResult, null, 2));
+            
+            if (executeResult.series) {
+              console.log(`📋 Found ${executeResult.series.length} series`);
+              executeResult.series.forEach((serie: any, index: number) => {
+                console.log(`📈 Serie ${index}:`, {
+                  name: serie.name,
+                  fields: serie.fields?.map((f: any) => ({ 
+                    name: f.name, 
+                    type: f.type, 
+                    labels: f.labels,
+                    valueCount: f.values?.length 
+                  }))
+                });
+                
+                // Tampilkan SEMUA labels unik untuk debugging
+                const interfaceFields = serie.fields?.filter((f: any) => f.type === 'number' && f.labels?.id);
+                console.log(`🔢 Number fields with interface IDs: ${interfaceFields?.length || 0}`);
+                
+                interfaceFields?.forEach((field: any, fieldIndex: number) => {
+                  console.log(`🏷️ Field ${fieldIndex}: ${field.name} -> Interface ID: ${field.labels.id}`);
+                });
+                
+                // Jika hanya 1 interface, debug kenapa
+                if ((interfaceFields?.length || 0) <= 1) {
+                  console.log('❌ PROBLEM: Only 1 or 0 interface detected!');
+                  console.log('🔍 All fields in serie:', serie.fields);
+                  console.log('🔍 Number type fields:', serie.fields?.filter((f: any) => f.type === 'number'));
+                  console.log('🔍 Fields with labels:', serie.fields?.filter((f: any) => f.labels));
+                }
+              });
+            } else {
+              console.log('❌ No series found in executeResult');
+            }
+          }
+          
           if (executeResult && executeResult.length > 0) {
             previewData = executeResult;
             console.log('🎯 Using executeResult as previewData');
@@ -252,6 +291,89 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
 
     // Render preview berdasarkan tipe panel
     switch (panelType) {
+      case 'timeseries':
+        // Untuk TimeSeries, tampilkan struktur data yang lebih detail
+        try {
+          const data = validationResult.data;
+          console.log('🔍 TimeSeries preview data:', data);
+          
+          let interfaceCount = 0;
+          let totalDataPoints = 0;
+          const interfaceList: string[] = [];
+          
+          if (data?.series) {
+            data.series.forEach((serie: any) => {
+              if (serie.fields) {
+                // Filter hanya field yang memiliki tipe number dan labels.id (interface fields)
+                const interfaceFields = serie.fields.filter((field: any) => 
+                  field.type === 'number' && field.labels && field.labels.id
+                );
+                
+                console.log(`🔍 Found ${interfaceFields.length} interface fields in serie`);
+                
+                interfaceFields.forEach((field: any) => {
+                  const interfaceId = field.labels.id;
+                  if (!interfaceList.includes(interfaceId)) {
+                    interfaceList.push(interfaceId);
+                    interfaceCount++;
+                  }
+                  if (field.values) {
+                    totalDataPoints += field.values.length;
+                  }
+                });
+              }
+            });
+          }
+          
+          return (
+            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
+              <div className="flex items-center mb-2">
+                <svg className="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <h4 className="text-sm font-medium text-green-800">TimeSeries Preview</h4>
+              </div>
+              
+              <div className="text-sm text-green-700 space-y-1">
+                <p><strong>Interfaces detected:</strong> {interfaceCount} ({interfaceList.join(', ')})</p>
+                <p><strong>Total data points:</strong> {totalDataPoints}</p>
+                <p><strong>Series structure:</strong> {data?.series?.length || 0} series</p>
+              </div>
+              
+              {interfaceCount === 0 && (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="text-sm text-yellow-700">
+                    ⚠️ No interface IDs detected in the data. Make sure your query includes interface ID labels.
+                  </p>
+                </div>
+              )}
+              
+              {interfaceCount === 1 && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm text-blue-700">
+                    💡 Only one interface detected. For multiple series, ensure your query doesn't filter to a single interface.
+                  </p>
+                </div>
+              )}
+              
+              <details className="mt-3">
+                <summary className="cursor-pointer text-sm text-green-600 hover:text-green-800">
+                  Show raw data structure
+                </summary>
+                <pre className="mt-2 text-xs bg-white p-2 border rounded overflow-auto max-h-40">
+                  {JSON.stringify(data, null, 2)}
+                </pre>
+              </details>
+            </div>
+          );
+        } catch (error) {
+          return (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-700">Error parsing TimeSeries data: {error instanceof Error ? error.message : 'Unknown error'}</p>
+            </div>
+          );
+        }
+
       case 'gauge':
         // Untuk gauge, extract nilai dari struktur data yang benar
         let gaugeValue: any = 'N/A';
@@ -508,7 +630,7 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
           </div>
         );
 
-      case 'interface-status':
+      case 'interface':
         const { status, time, metadata } = validationResult.data;
         return (
           <div className="mt-4 p-4 bg-gray-50 border rounded-md">
@@ -698,7 +820,6 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
           </div>
         );
 
-      case 'timeseries':
       case 'table':
       default:
         return (

@@ -60,9 +60,6 @@ export const getVisualizationComponent = (type: string) => {
   // Normalize type string
   const normalizedType = type?.toLowerCase().replace(/[_-]/g, '-');
   
-  console.log('getVisualizationComponent - Input type:', type);
-  console.log('getVisualizationComponent - Normalized type:', normalizedType);
-  
   // Direct mapping for common types
   const typeMapping: Record<string, keyof typeof VISUALIZATION_COMPONENTS> = {
     'text': VisualizationType.TEXT,
@@ -81,16 +78,13 @@ export const getVisualizationComponent = (type: string) => {
   
   // First try direct mapping
   const mappedType = typeMapping[normalizedType];
-  console.log('getVisualizationComponent - Mapped type:', mappedType);
   
   if (mappedType) {
     const component = VISUALIZATION_COMPONENTS[mappedType];
-    console.log('getVisualizationComponent - Component found:', component);
     return component;
   }
   
   // Fallback to exact match
   const fallbackComponent = VISUALIZATION_COMPONENTS[type as keyof typeof VISUALIZATION_COMPONENTS];
-  console.log('getVisualizationComponent - Fallback component:', fallbackComponent);
   return fallbackComponent;
-}; 
+};

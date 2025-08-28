@@ -25,6 +25,7 @@ export const API_ENDPOINTS = {
   VISUALIZATIONS: '/visualizations',
   PANELS: '/visualizations/panels',
   FLUX_QUERY: '/visualizations/flux-query',
+  TIMESERIES_QUERY: '/visualizations/timeseries-query',
   VALIDATE_QUERY: '/visualizations/validate-query',
   VALIDATE_FLUX_QUERY: '/visualizations/validate-flux-query',
   
@@ -43,4 +44,4 @@ export const DEFAULT_PANEL_CONFIG = {
   width: 12,
   height: 8,
   options: {}
-}; 
+};

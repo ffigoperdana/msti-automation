@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Network Topology Visualization</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .header { text-align: center; color: white; margin-bottom: 30px; }
+        .header h1 { font-size: 2.5em; margin: 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .header p { font-size: 1.2em; opacity: 0.9; }
+        .topology-container { margin-bottom: 40px; background: white; border-radius: 15px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); position: relative; overflow: hidden; }
+        .topology-title { font-size: 28px; font-weight: bold; margin-bottom: 20px; color: #333; border-bottom: 3px solid #007acc; padding-bottom: 15px; display: flex; align-items: center; }
+        .topology-title::before { content: '🌐'; margin-right: 10px; font-size: 24px; }
+        .stats { background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 20px; border-radius: 10px; margin-bottom: 25px; border-left: 4px solid #007acc; }
+        .stats h3 { margin: 0 0 15px 0; color: #333; font-size: 18px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .stat-item { background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .stat-value { font-size: 24px; font-weight: bold; color: #007acc; }
+        .stat-label { color: #666; font-size: 14px; margin-top: 5px; }
+        .network-canvas { position: relative; width: 800px; height: 400px; background: #f8f9fa; border-radius: 10px; margin: 20px auto; border: 2px solid #e9ecef; overflow: hidden; }
+        .device { position: absolute; background: white; border: 3px solid #ddd; border-radius: 12px; padding: 15px; text-align: center; cursor: move; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 120px; z-index: 10; user-select: none; }
+        .device:hover { border-color: #007acc; box-shadow: 0 8px 25px rgba(0,123,204,0.3); transform: translateY(-2px); z-index: 20; }
+        .device.dragging { z-index: 100; opacity: 0.8; }
+        .device-icon { width: 40px; height: 40px; margin: 0 auto 8px; object-fit: contain; border-radius: 4px; }
+        .device-hostname { font-weight: bold; color: #333; margin-bottom: 3px; font-size: 12px; line-height: 1.2; }
+        .device-ip { color: #666; font-size: 10px; margin-bottom: 3px; }
+        .device-type { background: #007acc; color: white; padding: 2px 6px; border-radius: 8px; font-size: 9px; text-transform: uppercase; }
+        .device-details { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 15px; border-radius: 8px; font-size: 11px; white-space: normal; max-width: 300px; z-index: 1000; opacity: 0; visibility: hidden; transition: all 0.3s ease; margin-top: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); line-height: 1.4; }
+        .device:hover .device-details { opacity: 1; visibility: visible; }
+        .device-details::before { content: ''; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 8px solid #333; }
+        .connection-line { stroke: #007acc; stroke-width: 3; fill: none; stroke-dasharray: 5,5; animation: dash 2s linear infinite; }
+        @keyframes dash { to { stroke-dashoffset: -10; } }
+        .connection-line:hover { stroke: #0056b3; stroke-width: 4; }
+        .controls { background: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; justify-content: center; }
+        .canvas-container { display: flex; justify-content: center; margin: 20px 0; }
+        .control-btn { background: #007acc; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; transition: all 0.3s ease; }
+        .control-btn:hover { background: #0056b3; transform: translateY(-2px); }
+        .legend { display: flex; gap: 20px; align-items: center; margin-top: 15px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #666; }
+        .legend-icon { width: 20px; height: 20px; border-radius: 4px; }
+        .loading { text-align: center; padding: 40px; color: #666; }
+        .loading::after { content: ''; display: inline-block; width: 20px; height: 20px; border: 3px solid #f3f3f3; border-top: 3px solid #007acc; border-radius: 50%; animation: spin 1s linear infinite; margin-left: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌐 Network Topology Discovery</h1>
+        <p>Advanced visualization of Cisco network topology with interactive features</p>
+    </div>
+
+    <!--TOPOLOGY_SECTIONS-->
+
+    <script>
+        let connectionsVisible = {};
+        function initTopologies() { document.querySelectorAll('.topology-container').forEach((_, idx) => { connectionsVisible[idx + 1] = true; }); }
+        function resetView(topologyId) { const canvas = document.getElementById(`topology-${topologyId}`); canvas.querySelectorAll('.device').forEach(d => { d.style.transform = 'translate(0px,0px)'; d.classList.remove('dragging'); }); updateConnections(topologyId); }
+        function centerDevices(topologyId) { const canvas = document.getElementById(`topology-${topologyId}`); const devices = canvas.querySelectorAll('.device'); const rect = canvas.getBoundingClientRect(); devices.forEach(d => { d.style.left = (rect.width - d.offsetWidth) / 2 + 'px'; d.style.top  = (rect.height - d.offsetHeight) / 2 + 'px'; d.style.transform = 'translate(0px,0px)'; }); updateConnections(topologyId); }
+        function toggleConnections(topologyId) { const canvas = document.getElementById(`topology-${topologyId}`); const lines = canvas.querySelectorAll('.connection-line'); connectionsVisible[topologyId] = !connectionsVisible[topologyId]; lines.forEach(l => l.style.display = connectionsVisible[topologyId] ? 'block' : 'none'); }
+        function exportTopology(topologyId) { const canvas = document.getElementById(`topology-${topologyId}`); const devices = [...canvas.querySelectorAll('.device')].map(d => ({ ip: d.dataset.ip, hostname: d.querySelector('.device-hostname').textContent, deviceType: d.querySelector('.device-type').textContent })); const connections = [...canvas.querySelectorAll('.connection-line')].map(c => ({ from: c.dataset.from, to: c.dataset.to })); const data = { topologyId, devices, connections, exportTime: new Date().toISOString() }; const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `topology-${topologyId}-${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(url); }
+        function updateConnections(topologyId) { const canvas = document.getElementById(`topology-${topologyId}`); const lines = canvas.querySelectorAll('.connection-line'); const rect = canvas.getBoundingClientRect(); lines.forEach(line => { const f = canvas.querySelector(`[data-ip="${line.dataset.from}"]`); const t = canvas.querySelector(`[data-ip="${line.dataset.to}"]`); if (!f || !t) return; const fr = f.getBoundingClientRect(), tr = t.getBoundingClientRect(); line.setAttribute('x1', fr.left - rect.left + fr.width / 2); line.setAttribute('y1', fr.top - rect.top + fr.height / 2); line.setAttribute('x2', tr.left - rect.left + tr.width / 2); line.setAttribute('y2', tr.top - rect.top + tr.height / 2); }); }
+        function makeDevicesDraggable() {
+            document.querySelectorAll('.device').forEach(device => {
+                let dragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+                device.style.left = device.style.left || '0px';
+                device.style.top  = device.style.top  || '0px';
+                device.addEventListener('mousedown', e => {
+                    dragging = true;
+                    device.classList.add('dragging');
+                    startX = e.clientX; startY = e.clientY;
+                    origLeft = parseInt(device.style.left || 0, 10);
+                    origTop  = parseInt(device.style.top || 0, 10);
+                    e.preventDefault();
+                });
+                document.addEventListener('mousemove', e => {
+                    if (!dragging) return;
+                    const canvas = device.closest('.network-canvas');
+                    const rect = canvas.getBoundingClientRect();
+                    let dx = e.clientX - startX;
+                    let dy = e.clientY - startY;
+                    let x = origLeft + dx;
+                    let y = origTop + dy;
+                    x = Math.max(0, Math.min(x, rect.width - device.offsetWidth));
+                    y = Math.max(0, Math.min(y, rect.height - device.offsetHeight));
+                    device.style.left = x + 'px';
+                    device.style.top = y + 'px';
+                    updateConnections(parseInt(canvas.id.split('-')[1]));
+                });
+                document.addEventListener('mouseup', () => {
+                    if (dragging) {
+                        dragging = false;
+                        device.classList.remove('dragging');
+                    }
+                });
+            });
+        }
+        window.addEventListener('load', () => { initTopologies(); makeDevicesDraggable(); });
+    </script>
+</body>
+</html>
+

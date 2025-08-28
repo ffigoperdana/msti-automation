@@ -54,4 +54,4 @@ router.delete('/panels/:id', deletePanel);
 router.post('/panels/:id/query', executePanelQuery);
 router.post('/panels/:id/validate', validateQuery);
 
-export default router; 
+export default router;

@@ -110,13 +110,47 @@ deploy_environment() {
     export IMAGE_TAG
     export DEPLOYMENT_TIMESTAMP
     
-    # Deploy using docker-compose
+    # Preflight: free host ports that will be used by this environment (avoid stale bind)
+    local backend_host_port webhook_host_port
     if [ "$env_name" = "blue" ]; then
-        docker compose -f deployment/docker-compose.blue.yml pull
-        docker compose -f deployment/docker-compose.blue.yml up -d
+        backend_host_port=3001
+        webhook_host_port=3002
     else
+        backend_host_port=3003
+        webhook_host_port=3004
+    fi
+
+    free_port_if_in_use() {
+        local port=$1
+        info "Preflight: ensuring host port :$port is free"
+        # Remove any container publishing this port (orphans/out-of-band)
+        local cids=$(docker ps -q --filter "publish=$port" || true)
+        if [ -n "$cids" ]; then
+            warn "Found containers publishing :$port → removing"
+            docker rm -f $cids || true
+            sleep 2
+        fi
+        # Kill docker-proxy/zombie if any
+        local pids=$(ps -ef | grep docker-proxy | grep ":$port" | awk '{print $2}')
+        if [ -n "$pids" ]; then
+            warn "Killing docker-proxy processes for :$port ($pids)"
+            echo "$pids" | xargs -r sudo kill -9 || true
+            sleep 1
+        fi
+    }
+
+    free_port_if_in_use "$backend_host_port"
+    free_port_if_in_use "$webhook_host_port"
+
+    # Deploy using docker-compose (clean orphans of same env to avoid stale bindings)
+    if [ "$env_name" = "blue" ]; then
+        docker compose -f deployment/docker-compose.blue.yml down --remove-orphans || true
+        docker compose -f deployment/docker-compose.blue.yml pull
+        docker compose -f deployment/docker-compose.blue.yml up -d --force-recreate --remove-orphans
+    else
+        docker compose -f deployment/docker-compose.green.yml down --remove-orphans || true
         docker compose -f deployment/docker-compose.green.yml pull
-        docker compose -f deployment/docker-compose.green.yml up -d
+        docker compose -f deployment/docker-compose.green.yml up -d --force-recreate --remove-orphans
     fi
     
     log "$env_name environment deployment started"

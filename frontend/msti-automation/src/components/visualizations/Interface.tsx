@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import metricService from '../../services/metricService';
 
 interface InterfaceProps {
-  panelId: string;
+  panelId?: string;
   queryResult?: any;
   options?: any;
 }
@@ -16,65 +15,75 @@ interface Field {
   };
 }
 
-const Interface: React.FC<InterfaceProps> = ({ panelId }) => {
+const Interface: React.FC<InterfaceProps> = ({ queryResult }) => {
   const [status, setStatus] = useState<string>('UNKNOWN');
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!panelId) return;
-
+    const processData = () => {
       try {
         setLoading(true);
-        const response = await metricService.executePanelQuery(panelId);
         
-        if (response?.[0]?.result?.series?.[0]?.fields) {
-          const fields = response[0].result.series[0].fields;
+        // Use queryResult prop instead of making API call
+        if (queryResult && Object.keys(queryResult).length > 0) {
+          // Get the first query result
+          const firstQueryKey = Object.keys(queryResult)[0];
+          const firstQueryResult = queryResult[firstQueryKey];
           
-          const valueField = fields.find((f: Field) => 
-            f.name === "Value" || 
-            f.name === "_value" || 
-            f.name.includes("value")
-          );
-          const timeField = fields.find((f: Field) => f.name === "Time" || f.type === "time");
-          
-          if (valueField && valueField.values && valueField.values.length > 0) {
-            const latestValue = valueField.values[valueField.values.length - 1];
-            const latestTime = timeField ? timeField.values[timeField.values.length - 1] : null;
+          if (firstQueryResult?.series?.[0]?.fields) {
+            const fields = firstQueryResult.series[0].fields;
             
-            if (latestTime) {
-              setLastUpdate(new Date(latestTime).toLocaleString());
+            const valueField = fields.find((f: Field) => 
+              f.name === "Value" || 
+              f.name === "_value" || 
+              f.name.includes("value") ||
+              f.type === "string"
+            );
+            const timeField = fields.find((f: Field) => f.name === "Time" || f.type === "time");
+            
+            if (valueField && valueField.values && valueField.values.length > 0) {
+              const latestValue = valueField.values[valueField.values.length - 1];
+              const latestTime = timeField ? timeField.values[timeField.values.length - 1] : null;
+              
+              if (latestTime) {
+                setLastUpdate(new Date(latestTime).toLocaleString());
+              }
+              
+              // Convert value to status
+              let newStatus = 'UNKNOWN';
+              if (typeof latestValue === 'string') {
+                newStatus = latestValue.toUpperCase();
+              } else if (typeof latestValue === 'number') {
+                newStatus = latestValue === 1 ? 'UP' : 'DOWN';
+              }
+              
+              setStatus(newStatus);
+              setError(null);
+            } else {
+              setStatus('UNKNOWN');
+              setError('No interface data available');
             }
-            
-            // Convert value to status
-            let newStatus = 'UNKNOWN';
-            if (typeof latestValue === 'string') {
-              newStatus = latestValue.toUpperCase();
-            } else if (typeof latestValue === 'number') {
-              newStatus = latestValue === 1 ? 'UP' : 'DOWN';
-            }
-            
-            setStatus(newStatus);
+          } else {
+            setStatus('UNKNOWN');
+            setError('No interface data available');
           }
+        } else {
+          setStatus('UNKNOWN');
+          setError('No data received');
         }
-        
-        setError(null);
       } catch (err) {
         console.error('Interface component error:', err);
-        setError('Failed to fetch interface data');
+        setError('Failed to process interface data');
+        setStatus('UNKNOWN');
       } finally {
         setLoading(false);
       }
     };
 
-    if (panelId) {
-      fetchData();
-      const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
-      return () => clearInterval(interval);
-    }
-  }, [panelId]);
+    processData();
+  }, [queryResult]);
 
   return (
     <div className={`flex flex-col items-center justify-center p-6 rounded-lg ${
@@ -113,4 +122,4 @@ const Interface: React.FC<InterfaceProps> = ({ panelId }) => {
   );
 };
 
-export default Interface; 
+export default Interface;
