@@ -33,7 +33,6 @@ interface Dashboard {
   updatedAt: string;
 }
 
-<<<<<<< HEAD
 interface Field {
   name: string;
   type: string;
@@ -231,9 +230,6 @@ const InterfaceStatusPanel: React.FC<{
     </div>
   );
 };
-=======
-// Komponen Menu Dropdown
->>>>>>> 83c7744d0da5f2fa0feba348f34f3f490869a931
 
 // Main Dashboard Component
 const Dashboard: React.FC = () => {
@@ -395,7 +391,6 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Panels Grid */}
-<<<<<<< HEAD
       <ResponsiveGridLayout
         className={`layout ${isEditMode ? 'border-2 border-dashed border-indigo-200 rounded-lg' : ''}`}
         layouts={layouts}
@@ -415,34 +410,15 @@ const Dashboard: React.FC = () => {
                 onDelete={() => handleDeletePanel(panel.id)}
               />
             ) : (
-=======
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
-        {dashboard.panels.map((panel) => {
-          // TimeSeries panels get wider layout (span 2 columns)
-          const isTimeSeriesPanel = panel.type === 'timeseries' || panel.type === 'time-series';
-          const panelClasses = isTimeSeriesPanel 
-            ? "min-h-[400px] md:col-span-2 lg:col-span-2" // Span 2 columns and taller
-            : "min-h-[280px]";
-            
-          return (
-            <div key={panel.id} className={panelClasses}>
->>>>>>> 83c7744d0da5f2fa0feba348f34f3f490869a931
               <VisualizationPanel
                 panel={panel}
                 dashboardId={dashboard.id}
                 onDelete={() => handleDeletePanel(panel.id)}
               />
-<<<<<<< HEAD
             )}
           </div>
         ))}
       </ResponsiveGridLayout>
-=======
-            </div>
-          );
-        })}
-      </div>
->>>>>>> 83c7744d0da5f2fa0feba348f34f3f490869a931
 
       {/* Empty State */}
       {dashboard.panels.length === 0 && (

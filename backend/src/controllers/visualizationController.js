@@ -926,7 +926,6 @@ export const getPanel = async(req, res) => {
     }
 };
 
-<<<<<<< HEAD
 export const updateDashboardLayout = async (req, res) => {
   try {
     const { id } = req.params; // This is the correct dashboardId
@@ -976,73 +975,4 @@ export const updateDashboardLayout = async (req, res) => {
     }
     res.status(500).json({ error: 'Failed to update dashboard layout' });
   }
-=======
-// Execute TimeSeries Query (standardized like other panel types)
-export const executeTimeSeriesQuery = async (req, res) => {
-    try {
-        const { dataSourceId, query, timeRange } = req.body;
-
-        if (!dataSourceId || !query) {
-            return res.status(400).json({ error: 'dataSourceId and query are required' });
-        }
-
-        const dataSource = await prisma.dataSource.findUnique({
-            where: { id: dataSourceId }
-        });
-
-        if (!dataSource) {
-            return res.status(404).json({ error: 'Data source not found' });
-        }
-
-        const client = new InfluxDB({
-            url: dataSource.url,
-            token: dataSource.token
-        });
-
-        const queryApi = client.getQueryApi(dataSource.organization);
-
-        // Execute the query
-        const rawResult = await new Promise((resolve, reject) => {
-            const rows = [];
-            queryApi.queryRows(query, {
-                next(row, tableMeta) {
-                    const o = tableMeta.toObject(row);
-                    rows.push(o);
-                },
-                error(error) {
-                    reject(error);
-                },
-                complete() {
-                    resolve(rows);
-                },
-            });
-        });
-
-        // Simple data transformation for TimeSeries
-        const series = [{
-            name: "TimeSeries Data",
-            fields: [
-                {
-                    name: "Time",
-                    type: "time",
-                    values: rawResult.map(row => new Date(row._time).getTime())
-                },
-                {
-                    name: "Value", 
-                    type: "number",
-                    values: rawResult.map(row => row._value)
-                }
-            ]
-        }];
-
-        res.json({
-            state: "Done",
-            series: series
-        });
-
-    } catch (error) {
-        console.error('Error executing TimeSeries query:', error);
-        res.status(500).json({ error: error.message });
-    }
->>>>>>> 83c7744d0da5f2fa0feba348f34f3f490869a931
 };

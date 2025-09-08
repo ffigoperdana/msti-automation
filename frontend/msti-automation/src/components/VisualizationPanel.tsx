@@ -246,11 +246,7 @@ const VisualizationPanel: React.FC<VisualizationPanelProps> = ({
           </div>
         ) : VisualizationComponent ? (
           <ErrorBoundary componentName={`${panel.type} Visualization`}>
-<<<<<<< HEAD
-            {panel.type === 'text' || panel.type === 'stat' || panel.type === 'interface-status' || panel.type === 'interface' || panel.type === 'gauge' || panel.type === 'memory-usage' || panel.type === 'chord-diagram' || panel.type === 'table' ? (
-=======
             {panel.type === 'text' || panel.type === 'stat' || panel.type === 'interface-status' || panel.type === 'interface' || panel.type === 'gauge' || panel.type === 'memory-usage' || panel.type === 'chord-diagram' || panel.type === 'timeseries' || panel.type === 'time-series' ? (
->>>>>>> 83c7744d0da5f2fa0feba348f34f3f490869a931
               <VisualizationComponent
                 panelId={panel.id}
                 queryResult={data}
