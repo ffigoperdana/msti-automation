@@ -17,10 +17,14 @@ interface DataSource {
 interface PanelData {
   title: string;
   description: string;
-  type: '' | 'text' | 'stat' |'timeseries' | 'interface-status' | 'gauge' | 'table' | 'chord-diagram';
+  type: '' | 'text' | 'stat' |'timeseries' | 'interface-status' | 'gauge' | 'table' | 'chord-diagram' | 'netflow-timeseries';
   dataSourceId?: string;
   queryText?: string;
+  srcQuery?: string;  // NetFlow source query
+  dstQuery?: string;  // NetFlow destination query
+  bytesQuery?: string; // NetFlow in_bytes query
   refreshInterval?: number; // Add refresh interval
+  gridSpan?: number; // Grid column span (1, 2, or 3)
   options: {
     measurement: string;
     field: string;
@@ -50,6 +54,7 @@ const DEFAULT_PANEL: PanelData = {
   description: '',
   type: '',
   refreshInterval: 10000, // Default 10 seconds
+  gridSpan: 1, // Default 1 column span
   options: {
     measurement: '',
     field: '',
@@ -86,14 +91,21 @@ const PanelForm: React.FC = () => {
           setIsEditMode(true);
           const panel = await metricService.getPanel(panelId);
           
+          // Check if this is NetFlow Time Series with 3 queries
+          const isNetFlowTimeSeries = panel.type === 'netflow-timeseries' && panel.queries?.length === 3;
+          
           // Transform panel data to match form structure
           setPanelData({
             title: panel.title || '',
             description: panel.description || '',
             type: panel.type,
             dataSourceId: panel.queries?.[0]?.dataSourceId,
-            queryText: panel.queries?.[0]?.query,
+            queryText: isNetFlowTimeSeries ? undefined : panel.queries?.[0]?.query,
+            srcQuery: isNetFlowTimeSeries ? panel.queries.find((q: any) => q.refId === 'src')?.query : undefined,
+            dstQuery: isNetFlowTimeSeries ? panel.queries.find((q: any) => q.refId === 'dst')?.query : undefined,
+            bytesQuery: isNetFlowTimeSeries ? panel.queries.find((q: any) => q.refId === 'bytes')?.query : undefined,
             refreshInterval: panel.refreshInterval || 10000,
+            gridSpan: panel.config?.gridSpan || panel.gridSpan || 1,
             options: {
               measurement: panel.options?.measurement || '',
               field: panel.options?.field || '',
@@ -121,29 +133,70 @@ const PanelForm: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    // Validasi sebelum submit
-    if (!panelData.title || !panelData.dataSourceId || !panelData.queryText) {
-      setError('Harap lengkapi semua field yang diperlukan');
-      setLoading(false);
-      return;
-    }
+    // Validasi untuk NetFlow Time Series
+    if (panelData.type === 'netflow-timeseries') {
+      if (!panelData.title || !panelData.dataSourceId || !panelData.srcQuery || !panelData.dstQuery || !panelData.bytesQuery) {
+        setError('Harap lengkapi semua field yang diperlukan untuk NetFlow Time Series');
+        setLoading(false);
+        return;
+      }
+    } else {
+      // Validasi untuk tipe panel lainnya
+      if (!panelData.title || !panelData.dataSourceId || !panelData.queryText) {
+        setError('Harap lengkapi semua field yang diperlukan');
+        setLoading(false);
+        return;
+      }
 
-    // Jika ada hasil validasi query dan tidak valid, tampilkan error
-    if (queryValidationResult && !queryValidationResult.isValid) {
-      setError(`Query tidak valid: ${queryValidationResult.error}`);
-      setLoading(false);
-      return;
+      // Jika ada hasil validasi query dan tidak valid, tampilkan error
+      if (queryValidationResult && !queryValidationResult.isValid) {
+        setError(`Query tidak valid: ${queryValidationResult.error}`);
+        setLoading(false);
+        return;
+      }
     }
 
     try {
-      const panelPayload = {
-        ...panelData,
-        queries: [{
-          refId: 'A',
-          dataSourceId: panelData.dataSourceId,
-          query: panelData.queryText
-        }]
-      };
+      let panelPayload;
+
+      // Build payload based on panel type
+      if (panelData.type === 'netflow-timeseries') {
+        panelPayload = {
+          ...panelData,
+          config: {
+            gridSpan: panelData.gridSpan || 1
+          },
+          queries: [
+            {
+              refId: 'src',
+              dataSourceId: panelData.dataSourceId,
+              query: panelData.srcQuery
+            },
+            {
+              refId: 'dst',
+              dataSourceId: panelData.dataSourceId,
+              query: panelData.dstQuery
+            },
+            {
+              refId: 'bytes',
+              dataSourceId: panelData.dataSourceId,
+              query: panelData.bytesQuery
+            }
+          ]
+        };
+      } else {
+        panelPayload = {
+          ...panelData,
+          config: {
+            gridSpan: panelData.gridSpan || 1
+          },
+          queries: [{
+            refId: 'A',
+            dataSourceId: panelData.dataSourceId,
+            query: panelData.queryText
+          }]
+        };
+      }
 
       if (isEditMode && panelId) {
         await metricService.updatePanel(panelId, panelPayload);
@@ -164,7 +217,7 @@ const PanelForm: React.FC = () => {
     const { name, value } = e.target;
     setPanelData(prev => ({
       ...prev,
-      [name]: name === 'refreshInterval' ? parseInt(value) : value
+      [name]: (name === 'refreshInterval' || name === 'gridSpan') ? parseInt(value) : value
     }));
   };
 
@@ -199,6 +252,13 @@ const PanelForm: React.FC = () => {
 
   // Check apakah form valid untuk enable/disable save button
   const isFormValid = () => {
+    if (panelData.type === 'netflow-timeseries') {
+      return panelData.title && 
+             panelData.dataSourceId && 
+             panelData.srcQuery && 
+             panelData.dstQuery && 
+             panelData.bytesQuery;
+    }
     return panelData.title && 
            panelData.dataSourceId && 
            panelData.queryText && 
@@ -290,6 +350,7 @@ const PanelForm: React.FC = () => {
                 <option value="text">Text</option>
                 <option value="stat">Stat</option>
                 <option value="timeseries">Time Series</option>
+                <option value="netflow-timeseries">NetFlow Time Series</option>
                 <option value="interface-status">Interface Status</option>
                 <option value="gauge">Gauge</option>
                 <option value="table">Table</option>
@@ -320,6 +381,27 @@ const PanelForm: React.FC = () => {
                 you can set longer intervals and use the reload button for real-time updates.
               </p>
             </div>
+
+            {/* Grid Span Selection */}
+            <div>
+              <label htmlFor="gridSpan" className="block text-sm font-medium text-gray-700">
+                Panel Width
+              </label>
+              <select
+                id="gridSpan"
+                name="gridSpan"
+                value={panelData.gridSpan || 1}
+                onChange={handleInputChange}
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+              >
+                <option value={1}>1 Column (Normal)</option>
+                <option value={2}>2 Columns (Wide)</option>
+                <option value={3}>3 Columns (Full Width)</option>
+              </select>
+              <p className="mt-1 text-sm text-gray-500">
+                How many grid columns this panel should span. Use wider layouts for time series and detailed visualizations.
+              </p>
+            </div>
           </div>
         </div>
               
@@ -347,6 +429,73 @@ const PanelForm: React.FC = () => {
               </select>
             </div>
           
+          {/* NetFlow Time Series - 3 Query Fields */}
+          {panelData.type === 'netflow-timeseries' ? (
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="srcQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                  Source IP Query
+                </label>
+                <textarea
+                  id="srcQuery"
+                  name="srcQuery"
+                  value={panelData.srcQuery || ''}
+                  onChange={handleInputChange}
+                  rows={4}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                  placeholder={`from(bucket: "telegraf")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["source"] == "192.168.238.101")
+  |> filter(fn: (r) => r["_measurement"] == "netflow")
+  |> filter(fn: (r) => r["_field"] == "src")
+  |> yield(name: "src")`}
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="dstQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                  Destination IP Query
+                </label>
+                <textarea
+                  id="dstQuery"
+                  name="dstQuery"
+                  value={panelData.dstQuery || ''}
+                  onChange={handleInputChange}
+                  rows={4}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                  placeholder={`from(bucket: "telegraf")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["source"] == "192.168.238.101")
+  |> filter(fn: (r) => r["_measurement"] == "netflow")
+  |> filter(fn: (r) => r["_field"] == "dst")
+  |> yield(name: "dst")`}
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="bytesQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                  In_Bytes Query
+                </label>
+                <textarea
+                  id="bytesQuery"
+                  name="bytesQuery"
+                  value={panelData.bytesQuery || ''}
+                  onChange={handleInputChange}
+                  rows={4}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                  placeholder={`from(bucket: "telegraf")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["source"] == "192.168.238.101")
+  |> filter(fn: (r) => r["_measurement"] == "netflow")
+  |> filter(fn: (r) => r["_field"] == "in_bytes")
+  |> yield(name: "in_bytes")`}
+                  required
+                />
+              </div>
+            </div>
+          ) : (
           <div>
             <div className="flex items-center justify-between mb-2">
               <label htmlFor="queryText" className="block text-sm font-medium text-gray-700">
@@ -410,6 +559,7 @@ const PanelForm: React.FC = () => {
               />
             )}
           </div>
+          )}
 
             {(panelData.type === 'interface-status') && (
               <div className="space-y-4">

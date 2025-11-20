@@ -113,11 +113,14 @@ const Dashboard: React.FC = () => {
       {/* Panels Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
         {dashboard.panels.map((panel) => {
-          // TimeSeries panels get wider layout (span 2 columns)
-          const isTimeSeriesPanel = panel.type === 'timeseries' || panel.type === 'time-series';
-          const panelClasses = isTimeSeriesPanel 
-            ? "min-h-[400px] md:col-span-2 lg:col-span-2" // Span 2 columns and taller
-            : "min-h-[280px]";
+          // Use panel's gridSpan config to determine column span
+          const gridSpan = panel.config?.gridSpan || 1;
+          const spanClasses = gridSpan === 3 
+            ? "md:col-span-2 lg:col-span-3" 
+            : gridSpan === 2 
+            ? "md:col-span-2 lg:col-span-2" 
+            : "";
+          const panelClasses = `min-h-[400px] ${spanClasses}`.trim();
             
           return (
             <div key={panel.id} className={panelClasses}>

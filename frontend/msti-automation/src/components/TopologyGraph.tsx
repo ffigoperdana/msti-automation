@@ -72,21 +72,13 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
     setPositions(computedPositions);
   }, [computedPositions]);
 
-  // Use assets from public folder to avoid bundling issues
-  const icons = useMemo(() => ({
-    router: '/cisco_icons/router.jpg',
-    switch: '/cisco_icons/switch.jpg',
-    firewall: '/cisco_icons/firewall.jpg',
-    server: '/cisco_icons/www server.jpg',
-    vm: '/cisco_icons/standard host.jpg',
-  }), []);
-  const iconFor = (t?: string, label?: string) => {
-    const kind = (t || '').toLowerCase();
-    const name = (label || '').toLowerCase();
-    if (name.includes('esxi') || name.includes('vmware') || name.includes('esx') || kind === 'vm') return icons.vm;
-    if (kind.includes('switch')) return icons.switch;
-    if (kind.includes('firewall')) return icons.firewall;
-    return icons.router;
+  // Color mapping - light gray/white for all nodes like in the reference image
+  const getNodeColor = () => {
+    return '#e5e7eb'; // light gray border color
+  };
+  
+  const getNodeBgColor = () => {
+    return '#f3f4f6'; // very light gray background
   };
 
   const resetView = () => setPositions(computedPositions);
@@ -223,21 +215,32 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
         </svg>
         {nodes.map((n) => {
           const p = positions[n.id] || { x: 100, y: 100 };
+          const nodeColor = getNodeColor();
+          const nodeBgColor = getNodeBgColor();
           return (
-            <div key={n.id} onMouseDown={(e) => onMouseDownNode(e, n.id)} className="device absolute bg-white border-2 border-gray-200 rounded-lg p-2 text-center shadow cursor-move hover:shadow-lg transition-shadow group" style={{ left: p.x - 80, top: p.y - 65, width: 180, userSelect: 'none', zIndex: 3, boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-              <img src={iconFor(n.type, n.label)} alt={n.type || 'device'} draggable={false} onDragStart={(ev) => ev.preventDefault()} className="device-icon" style={{ width: 40, height: 40, margin: '0 auto 6px', objectFit: 'contain', pointerEvents: 'none' }} />
-              <div className="device-hostname font-semibold text-xs" title={n.label} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.label}</div>
-              <div className="device-ip text-[10px] text-gray-600" title={n.mgmtIp || n.id} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.mgmtIp || n.id}</div>
-              <div className="flex items-center justify-center gap-2 mt-1">
-                <div className="device-type text-[9px] inline-block px-2 py-0.5 rounded bg-blue-600 text-white uppercase">{(n.type || 'device')}</div>
-                {n.role && (
-                  <div className={`text-[9px] inline-block px-2 py-0.5 rounded uppercase ${n.role==='source' ? 'bg-green-600 text-white' : n.role==='destination' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-white'}`}>{n.role}</div>
-                )}
+            <div key={n.id} className="absolute flex flex-col items-center cursor-move group" style={{ left: p.x - 60, top: p.y - 90, userSelect: 'none', zIndex: 3 }} onMouseDown={(e) => onMouseDownNode(e, n.id)}>
+              {/* IP Address on top */}
+              <div className="device-ip text-xs text-gray-700 font-medium mb-1" title={n.mgmtIp || n.id}>{n.mgmtIp || n.id}</div>
+              
+              {/* Hostname above circle */}
+              <div className="device-hostname font-bold text-sm mb-2" title={n.label}>{n.label}</div>
+              
+              {/* Main circle node - double circle like in image */}
+              <div className="rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all border-4" style={{ width: 70, height: 70, borderColor: nodeColor, backgroundColor: 'white' }}>
+                <div className="rounded-full" style={{ width: 50, height: 50, backgroundColor: nodeBgColor, border: '3px solid ' + nodeColor }}>
+                </div>
               </div>
+              
+              {/* Role badge below circle */}
+              {n.role && (
+                <div className={`text-[10px] inline-block px-3 py-1 rounded-full mt-2 uppercase font-semibold ${n.role==='source' ? 'bg-green-600 text-white' : n.role==='destination' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-white'}`}>{n.role}</div>
+              )}
+              
+              {/* Chips/interfaces below role */}
               {n.chips && n.chips.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center justify-center gap-1">
+                <div className="mt-1 flex flex-wrap items-center justify-center gap-1 max-w-[120px]">
                   {n.chips.map((c, i) => (
-                    <span key={i} className="text-[9px] px-2 py-0.5 rounded bg-gray-100 border">{c}</span>
+                    <span key={i} className="text-[9px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">{c}</span>
                   ))}
                 </div>
               )}
@@ -262,9 +265,7 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
         })}
       </div>
       <div className="legend flex gap-4 items-center text-sm text-gray-600">
-        <div className="flex items-center gap-2"><span className="inline-block w-5 h-5 rounded" style={{ background: '#007acc' }} /> Router</div>
-        <div className="flex items-center gap-2"><span className="inline-block w-5 h-5 rounded" style={{ background: '#28a745' }} /> Switch</div>
-        <div className="flex items-center gap-2"><span className="inline-block w-5 h-5 rounded" style={{ background: '#dc3545' }} /> Firewall</div>
+        <div className="flex items-center gap-2"><span className="inline-block w-5 h-5 rounded-full border-2" style={{ borderColor: '#e5e7eb', backgroundColor: '#f3f4f6' }} /> Network Device</div>
         <div className="flex items-center gap-2"><span className="inline-block" style={{ background: '#007acc', width: 30, height: 3 }} /> Connection</div>
       </div>
     </div>

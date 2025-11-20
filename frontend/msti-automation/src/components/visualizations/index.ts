@@ -5,6 +5,7 @@ import Interface from './Interface';
 import Table from './Table';
 import TimeSeries from './TimeSeries';
 import ChordDiagram from './ChordDiagram';
+import NetFlowTimeSeries from './NetFlowTimeSeries';
 
 // Visualization Components Export
 export { default as Text } from './Text';
@@ -14,6 +15,7 @@ export { default as Gauge } from './Gauge';
 export { default as Table } from './Table';
 export { default as Interface } from './Interface';
 export { default as ChordDiagram } from './ChordDiagram';
+export { default as NetFlowTimeSeries } from './NetFlowTimeSeries';
 
 // Common visualization props interface
 export interface BaseVisualizationProps {
@@ -33,7 +35,8 @@ export enum VisualizationType {
   TABLE = 'table',
   INTERFACE = 'interface',
   INTERFACE_STATUS = 'interface-status', // Legacy support
-  CHORD_DIAGRAM = 'chord-diagram'
+  CHORD_DIAGRAM = 'chord-diagram',
+  NETFLOW_TIMESERIES = 'netflow-timeseries'
 }
 
 // Visualization registry for dynamic component loading
@@ -46,6 +49,7 @@ export const VISUALIZATION_COMPONENTS = {
   [VisualizationType.INTERFACE]: Interface,
   [VisualizationType.INTERFACE_STATUS]: Interface, // Legacy mapping
   [VisualizationType.CHORD_DIAGRAM]: ChordDiagram,
+  [VisualizationType.NETFLOW_TIMESERIES]: NetFlowTimeSeries,
 } as const;
 
 // Type for visualization component props
@@ -74,6 +78,8 @@ export const getVisualizationComponent = (type: string) => {
     'chord-diagram': VisualizationType.CHORD_DIAGRAM,
     'chorddiagram': VisualizationType.CHORD_DIAGRAM,
     'chord': VisualizationType.CHORD_DIAGRAM,
+    'netflow-timeseries': VisualizationType.NETFLOW_TIMESERIES,
+    'netflowtimeseries': VisualizationType.NETFLOW_TIMESERIES,
   };
   
   // First try direct mapping

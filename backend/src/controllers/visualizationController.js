@@ -215,7 +215,7 @@ export const executeVisualizationQuery = async(req, res) => {
 export const updatePanel = async(req, res) => {
     try {
         const { id } = req.params;
-        const { title, description, type, width, height, position, options, dataSourceId, queries, refreshInterval } = req.body;
+        const { title, description, type, width, height, position, options, dataSourceId, queries, refreshInterval, config } = req.body;
 
         await prisma.query.deleteMany({
             where: { visualizationId: id }
@@ -231,6 +231,7 @@ export const updatePanel = async(req, res) => {
                     description,
                     width: width || 12,
                     height: height || 8,
+                    gridSpan: config?.gridSpan || 1,
                     options: options || {}
                 },
                 position,
@@ -260,7 +261,7 @@ export const updatePanel = async(req, res) => {
 export const createPanel = async(req, res) => {
     try {
         const { dashboardId } = req.params;
-        const { title, description, type, width, height, position, options, dataSourceId, queries, refreshInterval } = req.body;
+        const { title, description, type, width, height, position, options, dataSourceId, queries, refreshInterval, config } = req.body;
 
         const panel = await prisma.visualization.create({
             data: {
@@ -271,6 +272,7 @@ export const createPanel = async(req, res) => {
                     description,
                     width: width || 12,
                     height: height || 8,
+                    gridSpan: config?.gridSpan || 1,
                     options: options || {}
                 },
                 position,
@@ -472,6 +474,9 @@ export const getDashboard = async(req, res) => {
                 description: panel.config?.description || '',
                 width: panel.config?.width || 12,
                 height: panel.config?.height || 8,
+                config: {
+                    gridSpan: panel.config?.gridSpan || 1
+                },
                 options: panel.config?.options || {},
                 position: panel.position || { x: 0, y: 0 },
                 dataSourceId: panel.dataSourceId,
@@ -512,6 +517,7 @@ export const createDashboard = async(req, res) => {
                             description: panel.description,
                             width: panel.width || 12,
                             height: panel.height || 8,
+                            gridSpan: panel.config?.gridSpan || 1,
                             options: panel.options || {}
                         },
                         position: panel.position || { x: 0, y: 0 },
