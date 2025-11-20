@@ -10,6 +10,9 @@ interface Panel {
   width: number;
   height: number;
   position: { x: number; y: number };
+  config?: {
+    gridSpan?: number;
+  };
   options: any;
   refreshInterval?: number; // Add refreshInterval field
   queries: {

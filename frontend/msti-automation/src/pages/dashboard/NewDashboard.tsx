@@ -83,6 +83,7 @@ interface PanelData {
   type: string;
   dataSourceId: string;
   query: string;
+  gridSpan?: number;
 }
 
 const DEFAULT_PANEL: PanelData = {
@@ -90,7 +91,8 @@ const DEFAULT_PANEL: PanelData = {
   description: '',
   type: PANEL_TYPES[0].id,
   dataSourceId: '',
-  query: ''
+  query: '',
+  gridSpan: 1
 };
 
 const NewDashboard: React.FC = () => {
