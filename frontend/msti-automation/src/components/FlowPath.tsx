@@ -6,15 +6,14 @@ interface FlowNode {
   id: string;
   label: string;  // IP or hostname
   role: Role;
-  chips?: string[]; // e.g., tcp/80 or Eth1/1
 }
 
 interface FlowLink {
   id: string;
   source: string;
   target: string;
-  srcIfName?: string; // e.g., tcp/80 (Source) or Eth1/1
-  dstIfName?: string; // e.g., tcp/80 (Destination) or vmnic
+  srcIfName?: string;
+  dstIfName?: string;
 }
 
 interface Props {
@@ -35,13 +34,6 @@ const FlowPath: React.FC<Props> = ({ nodes, links }) => {
   const cy = [120, 120, 120];
   const r = 26;
 
-
-  const circleChip = (text: string, x: number, y: number) => (
-    <g transform={`translate(${x},${y})`}>
-      <rect x={-24} y={-10} width={48} height={18} rx={9} ry={9} fill="#e5e7eb" stroke="#d1d5db"/>
-      <text x={0} y={3} fontSize={10} fill="#111827" textAnchor="middle">{text}</text>
-    </g>
-  );
 
   const rolePill = (role: Role, x: number, y: number) => {
     const label = role.toUpperCase();
@@ -104,9 +96,6 @@ const FlowPath: React.FC<Props> = ({ nodes, links }) => {
             <text x={cx[i]} y={cy[i]-r-14} fontSize={12} fontWeight={600} textAnchor="middle" fill="#111827">{n.label}</text>
             {/* Role pill below circle */}
             {rolePill(n.role, cx[i], cy[i] + r + 18)}
-            {/* Extra chips (ports/interfaces) */}
-            {n.chips && n.chips[0] && circleChip(n.chips[0], cx[i], cy[i] + r + 40)}
-            {n.chips && n.chips[1] && circleChip(n.chips[1], cx[i], cy[i] + r + 62)}
           </g>
         ))}
       </svg>

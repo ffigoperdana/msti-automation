@@ -8,6 +8,8 @@ interface TableProps {
     pageSize?: number;
     fontSize?: string;
     sortable?: boolean;
+    mode?: 'simplified' | 'advanced'; // Table mode
+    selectedFields?: string[]; // For simplified mode
     [key: string]: any;
   };
 }
@@ -34,15 +36,15 @@ const TableVisualization = ({ data, options }: TableProps) => {
   const pageSize = options.pageSize || 10;
   const fontSize = options.fontSize || 'text-sm';
   const sortable = options.sortable !== false;
+  const mode = options.mode || 'simplified';
+  const selectedFields = options.selectedFields || [];
   
   useEffect(() => {
     if (!data || Object.keys(data).length === 0) return;
     
     let allColumns: Column[] = [];
     let allRows: RowData[] = [];
-    let rowIndex = 0;
     
-    // Process data from query results
     // Safety check: ensure data exists and is not null/undefined
     if (!data || typeof data !== 'object') {
       console.warn('Table component: data is null or undefined');
@@ -50,90 +52,159 @@ const TableVisualization = ({ data, options }: TableProps) => {
       setRows([]);
       return;
     }
+
+    // Process data based on mode
+    if (mode === 'simplified') {
+      // Simplified mode: single query result with field filtering
+      processSimplifiedMode(data, selectedFields, allColumns, allRows);
+    } else {
+      // Advanced mode: multiple queries combined
+      processAdvancedMode(data, allColumns, allRows);
+    }
+    
+    setColumns(allColumns);
+    setRows(allRows);
+  }, [data, mode, selectedFields]);
+
+  // Process simplified mode: filter fields from single query and create single row (pivot)
+  const processSimplifiedMode = (
+    data: Record<string, QueryResult>,
+    selectedFields: string[],
+    allColumns: Column[],
+    allRows: RowData[]
+  ) => {
+    // Collect all field data first
+    const fieldDataMap: Record<string, any> = {};
     
     Object.entries(data).forEach(([, queryResult]) => {
-      // Safety check: ensure queryResult exists and has series
       if (!queryResult || !queryResult.series || !Array.isArray(queryResult.series)) {
-        console.warn('Table component: queryResult or series is null/undefined', queryResult);
+        console.warn('Table simplified mode: queryResult or series is null/undefined', queryResult);
         return;
       }
       
       queryResult.series.forEach(serie => {
-        // Safety check: ensure serie exists and has data
-        if (!serie || !serie.data || !Array.isArray(serie.data) || !serie.fields || !Array.isArray(serie.fields)) {
-          console.warn('Table component: serie, serie.data, or serie.fields is null/undefined', serie);
+        if (!serie || !Array.isArray(serie.fields)) {
+          console.warn('Table simplified mode: serie or fields is null/undefined', serie);
           return;
         }
-        // Extract columns from fields
-        const serieColumns = serie.fields.map(field => ({
-          field,
-          header: field
-        }));
-        
-        // Add time column if not already present
-        if (!serieColumns.some(col => col.field === '_time')) {
-          serieColumns.unshift({
-            field: '_time',
-            header: 'Time'
-          });
-        }
-        
-        // Ensure we don't add duplicate columns
-        serieColumns.forEach(col => {
-          if (!allColumns.some(existingCol => existingCol.field === col.field)) {
-            allColumns.push(col);
-          }
-        });
-        
-        // Convert data points to rows
-        serie.data.forEach(point => {
-          const row: RowData = { _id: `row-${rowIndex++}` };
+
+        // There are two possible formats coming from backend:
+        // 1) fields: Array<{name,type,values: any[]}> (Grafana-style)
+        // 2) fields: string[] and data: Array<Record<string, any>> (store-style)
+
+        const fieldsAny = serie.fields as any[];
+        const isFieldObjects = (arr: any[]): arr is Array<{ name: string; type?: string; values?: any[] }> => {
+          return Array.isArray(arr) && arr.length > 0 && typeof arr[0] === 'object' && arr[0] !== null && 'name' in arr[0];
+        };
+
+        if (isFieldObjects(fieldsAny)) {
+          // Format with fields having values arrays
+          const valueFields = fieldsAny.filter((f: any) => f.type !== 'time');
           
-          // Add time field
-          if (point.time) {
-            row['_time'] = formatTimestamp(point.time);
-          }
-          
-          // Add all other fields
-          serie.fields.forEach((field, index) => {
-            if (typeof point[field] !== 'undefined') {
-              row[field] = point[field];
-            } else if (Array.isArray(point) && typeof point[index] !== 'undefined') {
-              // Handle case where data is array-like
-              row[field] = point[index];
+          valueFields.forEach((field: any) => {
+            if (field.values && field.values.length > 0) {
+              const lastIndex = field.values.length - 1;
+              fieldDataMap[field.name] = field.values[lastIndex];
             }
           });
-          
-          // Add measurements/tags as columns
-          if (serie.tags) {
-            Object.entries(serie.tags).forEach(([tagKey, tagValue]) => {
-              row[tagKey] = tagValue;
-              
-              // Add tag column if not already present
-              if (!allColumns.some(col => col.field === tagKey)) {
-                allColumns.push({
-                  field: tagKey,
-                  header: tagKey
-                });
+        } else {
+          // fields are simple string names; serie.data contains rows
+          const lastRow = Array.isArray(serie.data) && serie.data.length > 0 ? serie.data[serie.data.length - 1] : null;
+          if (lastRow && typeof lastRow === 'object' && lastRow !== null) {
+            Object.keys(lastRow).forEach(key => {
+              if (key !== '_time' && key !== 'Time') {
+                fieldDataMap[key] = lastRow[key];
               }
             });
           }
-          
-          allRows.push(row);
-        });
+        }
       });
     });
-    
-    setColumns(allColumns);
-    setRows(allRows);
-  }, [data]);
-  
-  // Format timestamp into readable format
-  const formatTimestamp = (timestamp: string): string => {
-    try {
-      return new Date(timestamp).toLocaleString();
-    } catch (e) {
-      return timestamp;
+
+    // Determine which fields to show, preserving order from selectedFields
+    const availableFields = Object.keys(fieldDataMap);
+    const fieldsToShow = selectedFields.length > 0
+      ? selectedFields.filter(f => availableFields.includes(f)) // Preserve selectedFields order
+      : availableFields;
+
+    // Add columns in the correct order
+    fieldsToShow.forEach(fieldName => {
+      allColumns.push({
+        field: fieldName,
+        header: fieldName.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+      });
+    });
+
+    // Create single row with all field data
+    if (fieldsToShow.length > 0) {
+      const row: RowData = { _id: 'row-0' };
+      fieldsToShow.forEach(fieldName => {
+        row[fieldName] = fieldDataMap[fieldName] ?? null;
+      });
+      allRows.push(row);
+    }
+  };
+
+  // Process advanced mode: combine multiple query results
+  const processAdvancedMode = (
+    data: Record<string, QueryResult>,
+    allColumns: Column[],
+    allRows: RowData[]
+  ) => {
+    let rowIndex = 0;
+    const combinedData: { [key: string]: any } = {};
+
+    // First pass: collect all data from all queries
+    Object.entries(data).forEach(([refId, queryResult]) => {
+      if (!queryResult || !queryResult.series || !Array.isArray(queryResult.series)) {
+        console.warn('Table advanced mode: queryResult or series is null/undefined', queryResult);
+        return;
+      }
+
+      queryResult.series.forEach(serie => {
+        if (!serie || !Array.isArray(serie.fields)) {
+          console.warn('Table advanced mode: serie or fields is null/undefined', serie);
+          return;
+        }
+        const fieldsAny = serie.fields as any[];
+        const isFieldObjects = (arr: any[]): arr is Array<{ name: string; type?: string; values?: any[] }> => {
+          return Array.isArray(arr) && arr.length > 0 && typeof arr[0] === 'object' && arr[0] !== null && 'name' in arr[0];
+        };
+
+        if (isFieldObjects(fieldsAny)) {
+          const valueField = fieldsAny.find((f: any) => f.type !== 'time') || fieldsAny[0];
+          if (valueField && valueField.values && valueField.values.length > 0) {
+            const columnName = valueField.name || refId;
+            if (!allColumns.some(col => col.field === columnName)) {
+              allColumns.push({ field: columnName, header: columnName.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) });
+            }
+            const lastIndex = valueField.values.length - 1;
+            combinedData[columnName] = valueField.values[lastIndex];
+          }
+        } else {
+          // fields are strings; use serie.data last row
+          const fieldNames: string[] = Array.isArray(fieldsAny) ? fieldsAny.filter((f: any) => f !== '_time' && f !== 'Time') : [];
+          const fieldName = fieldNames[0] || serie.name || refId;
+          const lastRow = Array.isArray(serie.data) && serie.data.length > 0 ? serie.data[serie.data.length - 1] : null;
+          if (lastRow) {
+            let value = null;
+            if (typeof lastRow === 'object' && lastRow !== null) {
+              value = lastRow[fieldName] ?? lastRow._value ?? null;
+            }
+            const columnName = fieldName || serie.name || refId;
+            if (!allColumns.some(col => col.field === columnName)) {
+              allColumns.push({ field: columnName, header: columnName.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) });
+            }
+            combinedData[columnName] = value;
+          }
+        }
+      });
+    });
+
+    // Second pass: create row from combined data
+    if (Object.keys(combinedData).length > 0) {
+      const row: RowData = { _id: `row-${rowIndex++}`, ...combinedData };
+      allRows.push(row);
     }
   };
   

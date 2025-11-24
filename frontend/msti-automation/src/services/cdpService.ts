@@ -10,7 +10,10 @@ export interface StartDiscoveryPayload {
   name?: string;
   seedIps?: string[];
   credentialGroups?: CredentialGroup[];
-  options?: Record<string, unknown>;
+  options?: {
+    protocol?: 'cdp' | 'lldp' | 'both';
+    [key: string]: unknown;
+  };
 }
 
 export const cdpService = {

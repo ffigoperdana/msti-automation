@@ -31,19 +31,22 @@ const cdpService = {
       throw new Error('Provide at least one seed IP (seedIps or credentialGroups[*].seedIps)');
     }
 
+    // Extract protocol option (default to 'cdp' for backward compatibility)
+    const protocol = options?.protocol || 'cdp';
+    
     const now = new Date();
-    const discoveryName = name || `CDP Discovery ${now.toISOString()}`;
+    const discoveryName = name || `${protocol.toUpperCase()} Discovery ${now.toISOString()}`;
 
     // Try to run python worker per credential group; merge results. If it fails, fallback to mock
-    console.log('[CDP] startDiscovery called', { name: discoveryName, groups: credentialGroups?.length || 0, seeds: allSeeds.length });
+    console.log('[CDP] startDiscovery called', { name: discoveryName, groups: credentialGroups?.length || 0, seeds: allSeeds.length, protocol });
     let aggregated = { nodes: [], links: [] };
     try {
       if (Array.isArray(credentialGroups) && credentialGroups.length > 0) {
         for (const group of credentialGroups) {
           const seeds = Array.isArray(group?.seedIps) ? group.seedIps : [];
           if (seeds.length === 0) continue;
-          console.log('[CDP] Running python worker for seeds', seeds);
-          const pythonGraph = await runPythonDiscovery(seeds, group.username || '', group.password || '');
+          console.log('[CDP] Running python worker for seeds', seeds, 'with protocol', protocol);
+          const pythonGraph = await runPythonDiscovery(seeds, group.username || '', group.password || '', protocol);
           aggregated.nodes.push(...pythonGraph.nodes);
           aggregated.links.push(...pythonGraph.links);
         }
@@ -173,7 +176,7 @@ const cdpService = {
   },
 };
 
-async function runPythonDiscovery(seedIps, username, password) {
+async function runPythonDiscovery(seedIps, username, password, protocol = 'cdp') {
   const workerPath = path.join(process.cwd(), 'src', 'workers', 'cdp', 'run_discovery.py');
   return new Promise((resolve, reject) => {
     const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
@@ -182,7 +185,7 @@ async function runPythonDiscovery(seedIps, username, password) {
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    const payload = JSON.stringify({ seedIps, username, password });
+    const payload = JSON.stringify({ seedIps, username, password, protocol });
     proc.stdin.write(payload);
     proc.stdin.end();
 

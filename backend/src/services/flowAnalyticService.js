@@ -78,7 +78,6 @@ class FlowAnalyticService {
         mgmtIp: sourceInfo.ip,
         type: sourceInfo.type || 'vm',
         role: 'source',
-        chips: sourceInfo.ports || [],
       });
     }
 
@@ -91,7 +90,6 @@ class FlowAnalyticService {
       mgmtIp: gatewayIp,
       type: 'switch',
       role: 'gateway',
-      chips: sourceInfo.gatewayInterfaces || [],
     });
 
     // Create destination node
@@ -102,7 +100,6 @@ class FlowAnalyticService {
         mgmtIp: destinationInfo.ip,
         type: destinationInfo.type || 'vm',
         role: 'destination',
-        chips: destinationInfo.ports || [],
       });
     }
 
@@ -146,10 +143,8 @@ class FlowAnalyticService {
         gateway: null,
         gatewayName: null,
         type: 'vm',
-        ports: [],
         srcInterface: 'vmnic5',
         dstInterface: 'Eth1/1',
-        gatewayInterfaces: ['Eth1/1', 'Eth1/2'],
       };
     }
 
@@ -183,47 +178,18 @@ class FlowAnalyticService {
     const gateway = firstRow.source || '192.168.238.101';
     const gatewayName = 'TELEMETRY-SW'; // You can make this configurable
 
-    // Try to extract port information if available
-    const ports = [];
-    data.forEach(row => {
-      if (row.port || row.dst_port || row.src_port) {
-        const port = row.port || row.dst_port || row.src_port;
-        const portStr = `tcp/${port}`;
-        if (!ports.includes(portStr)) {
-          ports.push(portStr);
-        }
-      }
-    });
-
-    // Default port if none found
-    if (ports.length === 0) {
-      ports.push('tcp/80');
-    }
-
     // Extract interface information if available
     const srcInterface = firstRow.in_interface || firstRow.ingress_interface || 'vmnic5';
     const dstInterface = firstRow.out_interface || firstRow.egress_interface || 
                         (type === 'source' ? 'Eth1/1' : 'Eth1/2');
-
-    // Collect gateway interfaces
-    const gatewayInterfaces = new Set();
-    data.forEach(row => {
-      if (row.in_interface) gatewayInterfaces.add(row.in_interface);
-      if (row.out_interface) gatewayInterfaces.add(row.out_interface);
-      if (row.ingress_interface) gatewayInterfaces.add(row.ingress_interface);
-      if (row.egress_interface) gatewayInterfaces.add(row.egress_interface);
-    });
 
     return {
       ip,
       gateway,
       gatewayName,
       type: 'vm',
-      ports,
       srcInterface,
       dstInterface,
-      gatewayInterfaces: gatewayInterfaces.size > 0 ? 
-        Array.from(gatewayInterfaces) : ['Eth1/1', 'Eth1/2'],
     };
   }
 }

@@ -269,10 +269,103 @@ class NetworkTopologyDiscovery:
             log(f"Error getting CDP neighbors: {e}")
             return []
 
+    def get_lldp_neighbors(self, ssh):
+        """Return list of LLDP neighbors
+        
+        LLDP output format example:
+        System Name: switch-01
+        Port id: Gi0/1
+        Port Description: GigabitEthernet0/1
+        System Name: router-02
+        
+        Local Intf: Gi0/2
+        Port id: Gi0/3
+        Port Description: GigabitEthernet0/3
+        System Name: switch-03
+        System Description: Cisco IOS Software, C3750 ...
+        Management Addresses:
+            IP: 192.168.1.10
+        """
+        try:
+            stdin, stdout, stderr = ssh.exec_command("show lldp neighbor detail")
+            out = stdout.read().decode()
+            neighbors = []
+            cur = {}
+            current_section = None
+            
+            for line in out.splitlines():
+                line = line.strip()
+                
+                # Start of new neighbor entry
+                if line.startswith("Local Intf:") or line.startswith("Local Interface:"):
+                    # Save previous neighbor if exists
+                    if cur:
+                        neighbors.append(cur)
+                    # Extract local interface
+                    m = re.search(r"Local (?:Intf|Interface):\s*(.+?)(?:\s|$)", line)
+                    if m:
+                        cur = {"local_interface": m.group(1).strip()}
+                    else:
+                        cur = {}
+                    current_section = None
+                    
+                elif line.startswith("Chassis id:"):
+                    # Optional: capture MAC address
+                    m = re.search(r"Chassis id:\s*(.+)$", line)
+                    if m:
+                        cur["chassis_id"] = m.group(1).strip()
+                        
+                elif line.startswith("Port id:"):
+                    # Remote port interface
+                    m = re.search(r"Port id:\s*(.+)$", line)
+                    if m:
+                        cur["port_id"] = m.group(1).strip()
+                        
+                elif line.startswith("Port Description:"):
+                    # Optional: more detail about remote port
+                    m = re.search(r"Port Description:\s*(.+)$", line)
+                    if m:
+                        cur["port_description"] = m.group(1).strip()
+                        
+                elif line.startswith("System Name:"):
+                    # Hostname of remote device
+                    m = re.search(r"System Name:\s*(.+)$", line)
+                    if m:
+                        cur["hostname"] = m.group(1).strip()
+                        
+                elif line.startswith("System Description:"):
+                    # Platform/version info
+                    m = re.search(r"System Description:\s*(.+)$", line)
+                    if m:
+                        cur["platform"] = m.group(1).strip()
+                        
+                elif line.startswith("Management Addresses:"):
+                    # Next lines will contain IP addresses
+                    current_section = "mgmt_addresses"
+                    
+                elif current_section == "mgmt_addresses":
+                    # Look for IP addresses
+                    ipm = re.search(r"(?:IP|IPv4):\s*(\d+\.\d+\.\d+\.\d+)", line)
+                    if ipm and "ip" not in cur:
+                        cur["ip"] = ipm.group(1)
+                    # Exit management section on empty line or new field
+                    if not line or line.startswith(("Chassis", "Port", "System", "Local")):
+                        current_section = None
+                        
+            # Add last neighbor
+            if cur:
+                neighbors.append(cur)
+                
+            return neighbors
+            
+        except Exception as e:
+            log(f"Error getting LLDP neighbors: {e}")
+            return []
+
     # ----------------------------------------------------------------
-    #  FLOW 1  – immediate CDP topology (no SSH to neighbours)
+    #  FLOW 1  – immediate topology (no SSH to neighbours)
     # ----------------------------------------------------------------
-    def build_flow1_topology(self, start_ip):
+    def build_flow1_topology(self, start_ip, protocol='cdp'):
         ssh = self.ssh_connect(start_ip)
         if not ssh:
             log(f"No SSH to {start_ip}, skipping discovery for this seed")
@@ -292,8 +385,19 @@ class NetworkTopologyDiscovery:
             base["hostname"] = hostname
             device_info = base
 
-        neighbors = self.get_cdp_neighbors(ssh)
-        log(f"Neighbors found for {start_ip}: {len(neighbors)}")
+        # Get neighbors based on protocol
+        neighbors = []
+        if protocol in ['cdp', 'both']:
+            cdp_neighbors = self.get_cdp_neighbors(ssh)
+            log(f"CDP neighbors found for {start_ip}: {len(cdp_neighbors)}")
+            neighbors.extend(cdp_neighbors)
+        
+        if protocol in ['lldp', 'both']:
+            lldp_neighbors = self.get_lldp_neighbors(ssh)
+            log(f"LLDP neighbors found for {start_ip}: {len(lldp_neighbors)}")
+            neighbors.extend(lldp_neighbors)
+        
+        log(f"Total neighbors found for {start_ip}: {len(neighbors)}")
 
         # Topologi dasar: device utama + setiap neighbor sebagai node placeholder
         device_info["arp_entries"] = self.get_arp_detail(ssh)
@@ -336,10 +440,10 @@ class NetworkTopologyDiscovery:
     # ----------------------------------------------------------------
     #  FLOW 2  – epidemic expansion only if SSH succeeds
     # ----------------------------------------------------------------
-    def epidemic_discovery(self, start_ip):
+    def epidemic_discovery(self, start_ip, protocol='cdp'):
         # ---- Flow 1 ----
-        log(f"[Flow 1] Building base topology for {start_ip}")
-        topology = self.build_flow1_topology(start_ip)
+        log(f"[Flow 1] Building base topology for {start_ip} with protocol: {protocol}")
+        topology = self.build_flow1_topology(start_ip, protocol)
         self.visited_ips.add(start_ip)
 
         # ---- Flow 2 ----
@@ -371,7 +475,17 @@ class NetworkTopologyDiscovery:
                 base = self.get_device_info(ssh, ip)
                 base["hostname"] = self.detect_hostname(ssh=ssh, ip=ip)
                 info = base
-            neighbors = self.get_cdp_neighbors(ssh)
+            
+            # Get neighbors based on protocol
+            neighbors = []
+            if protocol in ['cdp', 'both']:
+                cdp_neighbors = self.get_cdp_neighbors(ssh)
+                neighbors.extend(cdp_neighbors)
+            
+            if protocol in ['lldp', 'both']:
+                lldp_neighbors = self.get_lldp_neighbors(ssh)
+                neighbors.extend(lldp_neighbors)
+            
             info["arp_entries"] = self.get_arp_detail(ssh)
             # update atau tambah node untuk ip ini
             found_idx = next((i for i, d in enumerate(topology) if d['device'].get('ip') == ip), None)
@@ -417,15 +531,20 @@ class NetworkTopologyDiscovery:
     # ----------------------------------------------------------------
     #  TOP-LEVEL DRIVER
     # ----------------------------------------------------------------
-    def discover_all_topologies(self, seed_ips):
-        """Discover one topology per seed IP (Flow 1 + optional Flow 2)"""
+    def discover_all_topologies(self, seed_ips, protocol='cdp'):
+        """Discover one topology per seed IP (Flow 1 + optional Flow 2)
+        
+        Args:
+            seed_ips: List of IP addresses to start discovery from
+            protocol: 'cdp', 'lldp', or 'both' - which neighbor discovery protocol(s) to use
+        """
         for ip in seed_ips:
             # Skip seed jika sudah tercakup sebagai neighbor dari seed sebelumnya
             if ip in self.covered_seed_ips:
                 print(f"Seed {ip} skipped (already covered by previous topology)")
                 continue
             if ip not in self.visited_ips:
-                topo = self.epidemic_discovery(ip)
+                topo = self.epidemic_discovery(ip, protocol)
                 if topo:
                     self.topologies.append(topo)
         return self.topologies
