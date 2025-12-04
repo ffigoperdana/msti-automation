@@ -9,7 +9,7 @@ echo "🚀 MSTI Automation - Deploy from Laptop"
 echo "========================================"
 
 # Configuration
-VPS_HOST="cisco@192.168.238.10"
+VPS_HOST="cisco@10.20.50.125"
 DEPLOY_DIR="/opt/msti-automation"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/deploy_key}"  # Default to deploy_key, can be overridden
 
@@ -60,7 +60,7 @@ check_vps_connection() {
         SSH_WORKING=true
     else
         error "❌ Cannot connect to VPS. Check your VPN connection and SSH setup."
-        error "   Run: ssh -i ~/.ssh/deploy_key cisco@192.168.238.10 to test connection manually"
+        error "   Run: ssh -i ~/.ssh/deploy_key cisco@10.20.50.125 to test connection manually"
         exit 1
     fi
 }
@@ -195,9 +195,9 @@ EOF
         # Show access URLs
         echo ""
         echo "🌐 Application URLs:"
-        echo "   Frontend: http://192.168.238.10:5172 (Blue) or http://192.168.238.10:5173 (Green)"
-        echo "   Backend:  http://192.168.238.10:3001"
-        echo "   Webhook:  http://192.168.238.10:3002"
+        echo "   Frontend: http://10.20.50.125:5172 (Blue) or http://10.20.50.125:5173 (Green)"
+        echo "   Backend:  http://10.20.50.125:3001"
+        echo "   Webhook:  http://10.20.50.125:3002"
         echo ""
     else
         error "❌ Deployment failed!"
@@ -245,7 +245,7 @@ EOF
 cleanup_ssh() {
     # Clean up any leftover SSH control sockets
     if [[ "$OSTYPE" != "msys" && "$OSTYPE" != "cygwin" ]]; then
-        rm -f /tmp/ssh-*@192.168.238.10:22 2>/dev/null || true
+        rm -f /tmp/ssh-*@10.20.50.125:22 2>/dev/null || true
     fi
 }
 

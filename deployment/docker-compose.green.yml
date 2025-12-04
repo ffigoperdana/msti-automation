@@ -9,6 +9,8 @@ services:
     ports:
       - "3003:3001"  # Different external port for green environment
       - "3004:3002"  # Different external port for green environment
+    volumes:
+      - /etc/telegraf/telegraf.d:/telegraf-configs:rw
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
@@ -17,7 +19,8 @@ services:
       - PORT=3001
       - WEBHOOK_PORT=3002
       - APPLY_MIGRATIONS=false
-      - FRONTEND_URL=http://192.168.238.10:5173
+      # - FRONTEND_URL=http://192.168.238.10:5173
+      - FRONTEND_URL=http://10.20.50.125:5173
     networks:
       - msti-green
     labels:
@@ -37,7 +40,8 @@ services:
     restart: unless-stopped
     pull_policy: always
     environment:
-      - VITE_API_URL=http://192.168.238.10:3003/api
+      # - VITE_API_URL=http://192.168.238.10:3003/api
+      - VITE_API_URL=http://10.20.50.125:3003/api
       - NODE_ENV=production
     ports:
       - "5173:80"  # Different port from blue (5172)

@@ -274,9 +274,9 @@ show_status() {
     
     echo ""
     echo "Access URLs:"
-    echo "  Frontend: http://192.168.238.10:5172 (Blue) or http://192.168.238.10:5173 (Green)"
-    echo "  Backend:  http://192.168.238.10:3001"
-    echo "  Webhook:  http://192.168.238.10:3002"
+    echo "  Frontend: http://10.20.50.125:5172 (Blue) or http://10.20.50.125:5173 (Green)"
+    echo "  Backend:  http://10.20.50.125:3001"
+    echo "  Webhook:  http://10.20.50.125:3002"
 }
 
 # Rollback to previous environment

@@ -1,6 +1,6 @@
 // Dynamic API URL configuration for blue-green deployment
 const getApiUrl = () => {
-  // Priority: VITE_API_URL > localStorage > default
+  // Priority: VITE_API_URL > localStorage > default (same host as frontend)
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
@@ -13,8 +13,11 @@ const getApiUrl = () => {
     return `http://${serverAddress}:${serverPort}/api`;
   }
   
-  // Default fallback
-  return 'http://192.168.238.10:3001/api';
+  // Default fallback: use same host as frontend, port 3001
+  // This works for both development (localhost) and production (VPS IP)
+  const hostname = window.location.hostname;
+  const port = '3001';
+  return `http://${hostname}:${port}/api`;
 };
 
 export const API_URL = getApiUrl();

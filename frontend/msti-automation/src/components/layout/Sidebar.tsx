@@ -70,6 +70,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         { title: 'Webhook', path: '/automation/webhook' },
         { title: 'Flow Analytic', path: '/automation/flow' },
         { title: 'CDP Discovery', path: '/automation/cdp' },
+        { title: 'Telegraf', path: '/automation/telegraf' },
         { title: 'Ansible', path: '#', isSubmenu: true, children: [
           { title: 'Server', path: '/automation/ansible/server' },
           { title: 'Config', path: '/automation/ansible/config' },

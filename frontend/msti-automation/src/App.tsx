@@ -26,6 +26,8 @@ import FlowDetail from './pages/automation/discovery/FlowDetail'
 import DiscoveryList from './pages/automation/discovery/DiscoveryList'
 import NewDiscovery from './pages/automation/discovery/NewDiscovery'
 import DiscoveryDetail from './pages/automation/discovery/DiscoveryDetail'
+import TelegrafList from './pages/automation/telegraf/TelegrafList'
+import TelegrafForm from './pages/automation/telegraf/TelegrafForm'
 import Login from './pages/Login'
 import { SourceProvider } from './context/SourceContext'
 import { ApiProvider } from './context/ApiContext'
@@ -121,6 +123,11 @@ function App() {
                     <Route path="/automation/flow" element={<FlowList />} />
                     <Route path="/automation/flow/new" element={<FlowNew />} />
                     <Route path="/automation/flow/detail" element={<FlowDetail />} />
+
+                    {/* Telegraf Routes */}
+                    <Route path="/automation/telegraf" element={<TelegrafList />} />
+                    <Route path="/automation/telegraf/new" element={<TelegrafForm />} />
+                    <Route path="/automation/telegraf/edit/:filename" element={<TelegrafForm />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>

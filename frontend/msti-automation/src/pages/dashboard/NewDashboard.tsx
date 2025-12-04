@@ -4,13 +4,15 @@ import { useSource } from '../../context/SourceContext';
 import axios from 'axios';
 import metricService from '../../services/metricService';
 
-// Tipe panel yang didukung
+// Tipe panel yang didukung - matches PanelForm types
 const PANEL_TYPES = [
-  { id: 'time-series', name: 'Time Series', icon: '📈' },
+  { id: 'text', name: 'Text', icon: '📝' },
+  { id: 'stat', name: 'Stat', icon: '📊' },
+  { id: 'timeseries', name: 'Time Series', icon: '📈' },
   { id: 'netflow-timeseries', name: 'NetFlow Time Series', icon: '🌊' },
+  { id: 'interface-status', name: 'Interface Status', icon: '🔌' },
   { id: 'gauge', name: 'Gauge', icon: '⏲️' },
   { id: 'table', name: 'Table', icon: '🔢' },
-  { id: 'interface', name: 'Interface Status', icon: '🔌' },
   { id: 'chord-diagram', name: 'Chord Diagram', icon: '🌐' },
 ];
 
@@ -163,7 +165,7 @@ const NewDashboard: React.FC = () => {
 
   // Update queryText berdasarkan panel type, interface, dan time range
   useEffect(() => {
-    if (selectedPanel === 'interface') {
+    if (selectedPanel === 'interface-status') {
       const interfaceDetails = INTERFACE_OPTIONS.find(i => i.id === selectedInterface);
       const newQuery = `timeStart = uint(v: ${timeRange.from})
 timeStop = uint(v: ${timeRange.to})
@@ -195,7 +197,7 @@ from(bucket: "${selectedDataSource}")
       setApiData(response.data);
       
       // Update query text berdasarkan data yang diterima
-      if (selectedPanel === 'interface' && response.data.network_status) {
+      if (selectedPanel === 'interface-status' && response.data.network_status) {
         const interfaceData = response.data.network_status.find(
           (item: NetworkStatus) => item.interface_id === selectedInterface
         );
@@ -277,7 +279,7 @@ from(bucket: "${selectedDataSource}")
     const cleanMetricName = metricName.split(':').pop() || metricName;
     
     switch (panelType) {
-      case 'interface':
+      case 'interface-status':
         return `from(bucket: "${selectedDataSource}")
   |> range(start: duration(v: -1h))
   |> filter(fn: (r) => r["_measurement"] == "sys/intf")
@@ -287,12 +289,20 @@ from(bucket: "${selectedDataSource}")
   |> aggregateWindow(every: 10s, fn: last, createEmpty: false)
   |> yield(name: "last")`;
 
-      case 'time-series':
+      case 'timeseries':
         return `from(bucket: "${selectedDataSource}")
   |> range(start: duration(v: -1h))
   |> filter(fn: (r) => r["_measurement"] == "${cleanMetricName}")
   |> aggregateWindow(every: 10s, fn: mean)
   |> yield(name: "mean")`;
+
+      case 'text':
+      case 'stat':
+        return `from(bucket: "${selectedDataSource}")
+  |> range(start: duration(v: -1h))
+  |> filter(fn: (r) => r["_measurement"] == "${cleanMetricName}")
+  |> last()
+  |> yield(name: "last")`;
 
       case 'gauge':
         return `from(bucket: "${selectedDataSource}")

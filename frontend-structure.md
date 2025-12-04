@@ -123,7 +123,7 @@ frontend/msti-automation/
 
 #### 1. API Service (`api.ts`)
 - Axios instance configuration
-- Base URL: `http://192.168.238.10:3001/api`
+- Base URL: `http://10.20.50.125:3001/api`
 - Request/Response interceptors
 - Authentication handling
 - Error handling
