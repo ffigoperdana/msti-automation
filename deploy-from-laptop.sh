@@ -147,12 +147,25 @@ sync_with_scp() {
         SSH_OPTS="$SSH_KEY_OPTS -o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
     fi
     
+    # Backup .env file if it exists on VPS
+    ssh $SSH_OPTS "$VPS_HOST" "if [ -f $DEPLOY_DIR/deployment/.env ]; then cp $DEPLOY_DIR/deployment/.env /tmp/.env.backup; fi"
+    
     # Remove old deployment directory and recreate
     ssh $SSH_OPTS "$VPS_HOST" "rm -rf $DEPLOY_DIR/deployment && mkdir -p $DEPLOY_DIR/deployment"
     
     # Copy all files in one batch to reduce SSH connections
     log "Copying deployment files..."
     scp $SSH_OPTS -r ./deployment/* "$VPS_HOST:$DEPLOY_DIR/deployment/"
+    
+    # Copy .env file explicitly (in case it's hidden from glob)
+    if [ -f ./deployment/.env ]; then
+        log "Copying .env file..."
+        scp $SSH_OPTS ./deployment/.env "$VPS_HOST:$DEPLOY_DIR/deployment/.env"
+    else
+        # Restore from backup if local .env doesn't exist
+        warning ".env file not found locally, trying to restore from VPS backup..."
+        ssh $SSH_OPTS "$VPS_HOST" "if [ -f /tmp/.env.backup ]; then cp /tmp/.env.backup $DEPLOY_DIR/deployment/.env; fi"
+    fi
 }
 
 # Deploy to VPS
