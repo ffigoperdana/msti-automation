@@ -5,6 +5,8 @@ RUN apk add --no-cache \
     bash \
     curl \
     netcat-openbsd \
+    sshpass \
+    openssh-client \
     tini
 
 # Create non-root user for security

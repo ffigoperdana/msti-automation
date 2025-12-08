@@ -31,14 +31,14 @@ ssh-keygen -t rsa -b 4096 -C "your.email@company.com"
 
 ```bash
 # Method 1: Using ssh-copy-id with deploy_key
-ssh-copy-id -i ~/.ssh/deploy_key.pub cisco@192.168.238.10
+ssh-copy-id -i ~/.ssh/deploy_key.pub cisco@10.20.50.125
 
 # Method 2: Manual copy with deploy_key
-cat ~/.ssh/deploy_key.pub | ssh cisco@192.168.238.10 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+cat ~/.ssh/deploy_key.pub | ssh cisco@10.20.50.125 "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
 
 # Method 3: SCP copy with deploy_key
-scp ~/.ssh/deploy_key.pub cisco@192.168.238.10:~/
-ssh cisco@192.168.238.10
+scp ~/.ssh/deploy_key.pub cisco@10.20.50.125:~/
+ssh cisco@10.20.50.125
 mkdir -p ~/.ssh
 cat ~/deploy_key.pub >> ~/.ssh/authorized_keys
 chmod 600 ~/.ssh/authorized_keys
@@ -47,20 +47,20 @@ rm ~/deploy_key.pub
 exit
 
 # Method 4: If using default id_rsa key
-ssh-copy-id cisco@192.168.238.10
+ssh-copy-id cisco@10.20.50.125
 ```
 
 ### Step 3: Test SSH Key Authentication
 
 ```bash
 # Test connection with deploy_key (should not prompt for password)
-ssh -i ~/.ssh/deploy_key cisco@192.168.238.10 "echo 'SSH key authentication working!'"
+ssh -i ~/.ssh/deploy_key cisco@10.20.50.125 "echo 'SSH key authentication working!'"
 
 # Or use npm script (configured for deploy_key)
 npm run ssh:test
 
 # Test with default key (if using id_rsa)
-ssh cisco@192.168.238.10 "echo 'SSH key authentication working!'"
+ssh cisco@10.20.50.125 "echo 'SSH key authentication working!'"
 
 # If successful, you should see the message without password prompt
 ```
@@ -78,7 +78,7 @@ Add this configuration:
 
 ```
 Host msti-vps
-    HostName 192.168.238.10
+    HostName 10.20.50.125
     User cisco
     Port 22
     IdentityFile ~/.ssh/deploy_key
@@ -90,7 +90,7 @@ Host msti-vps
 
 # Alternative: If using default key
 Host msti-vps-default
-    HostName 192.168.238.10
+    HostName 10.20.50.125
     User cisco
     Port 22
     IdentityFile ~/.ssh/id_rsa
@@ -121,7 +121,7 @@ chmod 644 ~/.ssh/id_rsa.pub
 
 **Solution 2: Check VPS permissions**
 ```bash
-ssh cisco@192.168.238.10  # Using password
+ssh cisco@10.20.50.125  # Using password
 chmod 700 ~/.ssh
 chmod 600 ~/.ssh/authorized_keys
 exit
@@ -144,10 +144,10 @@ ssh-add ~/.ssh/id_rsa
 **Test specific key:**
 ```bash
 # Test with deploy_key
-ssh -i ~/.ssh/deploy_key cisco@192.168.238.10
+ssh -i ~/.ssh/deploy_key cisco@10.20.50.125
 
 # Test with default key
-ssh -i ~/.ssh/id_rsa cisco@192.168.238.10
+ssh -i ~/.ssh/id_rsa cisco@10.20.50.125
 ```
 
 ### Problem: "Could not open a connection to your authentication agent"
@@ -219,7 +219,7 @@ Complete `~/.ssh/config` for MSTI project:
 ```
 # MSTI VPS Configuration (using deploy_key)
 Host msti-vps
-    HostName 192.168.238.10
+    HostName 10.20.50.125
     User cisco
     Port 22
     IdentityFile ~/.ssh/deploy_key
@@ -231,13 +231,13 @@ Host msti-vps
     
 # Optional: Shortcut for deployment commands
 Host msti
-    HostName 192.168.238.10
+    HostName 10.20.50.125
     User cisco
     IdentityFile ~/.ssh/deploy_key
 
 # Alternative: If using default key
 Host msti-default
-    HostName 192.168.238.10
+    HostName 10.20.50.125
     User cisco
     IdentityFile ~/.ssh/id_rsa
 ```
@@ -270,11 +270,11 @@ If you prefer not to store keys on your laptop:
 
 ```bash
 # Use SSH agent forwarding
-ssh -A cisco@192.168.238.10
+ssh -A cisco@10.20.50.125
 
 # In SSH config
 Host msti-vps
-    HostName 192.168.238.10
+    HostName 10.20.50.125
     User cisco
     ForwardAgent yes
 ```

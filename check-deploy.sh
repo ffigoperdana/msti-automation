@@ -61,8 +61,8 @@ done
 
 echo ""
 echo -e "${BLUE}🌐 Application URLs (after deployment):${NC}"
-echo "   • Frontend: http://192.168.238.10:5172 or :5173"
-echo "   • Backend:  http://192.168.238.10:3001"
+echo "   • Frontend: http://10.20.50.125:5172 or :5173"
+echo "   • Backend:  http://10.20.50.125:3001"
 echo ""
 echo -e "${BLUE}📖 Available commands:${NC}"
 echo "   npm run deploy        - Deploy latest version"

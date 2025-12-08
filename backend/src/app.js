@@ -5,6 +5,8 @@ import sourceRoutes from './routes/sourceRoutes.js';
 import visualizationRoutes from './routes/visualizationRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import cdpRoutes from './routes/cdpRoutes.js';
+import flowAnalyticRoutes from './routes/flowAnalyticRoutes.js';
+import telegrafRoutes from './routes/telegrafRoutes.js';
 
 const app = express();
 
@@ -56,6 +58,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/sources', sourceRoutes);
 app.use('/api/visualizations', visualizationRoutes);
 app.use('/api/cdp', cdpRoutes);
+app.use('/api/flow-analytics', flowAnalyticRoutes);
+app.use('/api/telegraf', telegrafRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

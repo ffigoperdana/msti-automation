@@ -11,7 +11,12 @@ interface Panel {
   id: string;
   title: string;
   type: string;
-  // layout is now managed by the dashboard component's state
+  width: number;
+  height: number;
+  position: { x: number; y: number };
+  config?: {
+    gridSpan?: number;
+  };
   options: any;
   refreshInterval?: number; // Add refreshInterval field
   queries: {
@@ -410,6 +415,19 @@ const Dashboard: React.FC = () => {
                 onDelete={() => handleDeletePanel(panel.id)}
               />
             ) : (
+        // <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
+        //   {dashboard.panels.map((panel) => {
+        //     // Use panel's gridSpan config to determine column span
+        //     const gridSpan = panel.config?.gridSpan || 1;
+        //     const spanClasses = gridSpan === 3 
+        //       ? "md:col-span-2 lg:col-span-3" 
+        //       : gridSpan === 2 
+        //       ? "md:col-span-2 lg:col-span-2" 
+        //       : "";
+        //     const panelClasses = `min-h-[400px] ${spanClasses}`.trim();
+              
+        //     return (
+        //       <div key={panel.id} className={panelClasses}>
               <VisualizationPanel
                 panel={panel}
                 dashboardId={dashboard.id}

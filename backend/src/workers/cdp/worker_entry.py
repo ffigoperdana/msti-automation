@@ -18,11 +18,12 @@ def main():
     seeds = payload.get("seedIps", [])
     username = payload.get("username") or os.environ.get("CDP_USERNAME") or "cisco"
     password = payload.get("password") or os.environ.get("CDP_PASSWORD") or "cisco"
+    protocol = payload.get("protocol", "cdp")  # default to CDP for backward compatibility
 
-    print(f"worker_entry: received seeds={seeds}", file=sys.stderr, flush=True)
+    print(f"worker_entry: received seeds={seeds}, protocol={protocol}", file=sys.stderr, flush=True)
 
     discovery = NetworkTopologyDiscovery(username, password)
-    topologies = discovery.discover_all_topologies(seeds)
+    topologies = discovery.discover_all_topologies(seeds, protocol)
 
     # Convert to simple nodes/links
     nodes_map = {}
@@ -44,16 +45,21 @@ def main():
                 nodes_map[ip] = True
                 nodes.append(node)
 
+    # Build links with appropriate linkType based on protocol used
     links = []
     for c in discovery.connections:
         fr = c.get("from")
         to = c.get("to")
         if fr and to:
+            # Determine linkType based on protocol parameter
+            # If 'both' was used, we can't determine which protocol discovered this link
+            # For simplicity, use the protocol parameter value
+            link_type = protocol if protocol in ['cdp', 'lldp'] else 'cdp'
             links.append({
                 "id": f"{fr}->{to}",
                 "source": fr,
                 "target": to,
-                "linkType": "cdp",
+                "linkType": link_type,
                 "srcIfName": c.get("from_if"),
                 "dstIfName": c.get("to_if"),
             })

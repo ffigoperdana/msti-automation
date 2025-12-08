@@ -17,10 +17,14 @@ interface DataSource {
 interface PanelData {
   title: string;
   description: string;
-  type: '' | 'text' | 'stat' |'timeseries' | 'interface-status' | 'gauge' | 'table' | 'chord-diagram';
+  type: '' | 'text' | 'stat' |'timeseries' | 'interface-status' | 'gauge' | 'table' | 'chord-diagram' | 'netflow-timeseries';
   dataSourceId?: string;
   queryText?: string;
+  srcQuery?: string;  // NetFlow source query
+  dstQuery?: string;  // NetFlow destination query
+  bytesQuery?: string; // NetFlow in_bytes query
   refreshInterval?: number; // Add refresh interval
+  gridSpan?: number; // Grid column span (1, 2, or 3)
   options: {
     measurement: string;
     field: string;
@@ -28,6 +32,10 @@ interface PanelData {
     decimals: number;
     min?: number;
     max?: number;
+    // Table-specific options
+    mode?: 'simplified' | 'advanced';
+    selectedFields?: string[];
+    timeRange?: string; // -5m, -15m, -1h, etc.
   };
   queries: Array<{
     refId: string;
@@ -50,11 +58,15 @@ const DEFAULT_PANEL: PanelData = {
   description: '',
   type: '',
   refreshInterval: 10000, // Default 10 seconds
+  gridSpan: 1, // Default 1 column span
   options: {
     measurement: '',
     field: '',
     unit: '',
     decimals: 2,
+    mode: 'simplified',
+    selectedFields: [],
+    timeRange: '-5m',
   },
   queries: []
 };
@@ -73,6 +85,11 @@ const PanelForm: React.FC = () => {
   const [showTemplates, setShowTemplates] = useState(false);
   const [, setCanSave] = useState(false);
 
+  // Table-specific states
+  const [availableFields, setAvailableFields] = useState<string[]>([]);
+  const [scanningFields, setScanningFields] = useState(false);
+  const [advancedQueries, setAdvancedQueries] = useState<Array<{ id: string; query: string }>>([{ id: '1', query: '' }]);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -86,24 +103,55 @@ const PanelForm: React.FC = () => {
           setIsEditMode(true);
           const panel = await metricService.getPanel(panelId);
           
+          // Check if this is NetFlow Time Series with 3 queries
+          const isNetFlowTimeSeries = panel.type === 'netflow-timeseries' && panel.queries?.length === 3;
+          
           // Transform panel data to match form structure
           setPanelData({
             title: panel.title || '',
             description: panel.description || '',
             type: panel.type,
             dataSourceId: panel.queries?.[0]?.dataSourceId,
-            queryText: panel.queries?.[0]?.query,
+            queryText: isNetFlowTimeSeries ? undefined : panel.queries?.[0]?.query,
+            srcQuery: isNetFlowTimeSeries ? panel.queries.find((q: any) => q.refId === 'src')?.query : undefined,
+            dstQuery: isNetFlowTimeSeries ? panel.queries.find((q: any) => q.refId === 'dst')?.query : undefined,
+            bytesQuery: isNetFlowTimeSeries ? panel.queries.find((q: any) => q.refId === 'bytes')?.query : undefined,
             refreshInterval: panel.refreshInterval || 10000,
+            gridSpan: panel.config?.gridSpan || panel.gridSpan || 1,
             options: {
-              measurement: panel.options?.measurement || '',
-              field: panel.options?.field || '',
-              unit: panel.options?.unit || '',
-              decimals: panel.options?.decimals || 2,
-              min: panel.options?.min,
-              max: panel.options?.max,
+              measurement: panel.options?.measurement || panel.config?.options?.measurement || '',
+              field: panel.options?.field || panel.config?.options?.field || '',
+              unit: panel.options?.unit || panel.config?.options?.unit || '',
+              decimals: panel.options?.decimals || panel.config?.options?.decimals || 2,
+              min: panel.options?.min || panel.config?.options?.min,
+              max: panel.options?.max || panel.config?.options?.max,
+              // Table-specific options
+              mode: panel.options?.mode || panel.config?.options?.mode || 'simplified',
+              selectedFields: panel.options?.selectedFields || panel.config?.options?.selectedFields || [],
+              timeRange: panel.options?.timeRange || panel.config?.options?.timeRange || '-5m',
             },
             queries: panel.queries || []
           });
+          
+          // For table type, load advanced queries if in advanced mode
+          if (panel.type === 'table' && (panel.options?.mode === 'advanced' || panel.config?.options?.mode === 'advanced')) {
+            const loadedQueries = panel.queries.map((q: any, index: number) => ({
+              id: (index + 1).toString(),
+              query: q.query
+            }));
+            if (loadedQueries.length > 0) {
+              setAdvancedQueries(loadedQueries);
+            }
+          }
+          
+          // For table simplified mode, load available fields if selectedFields exist
+          if (panel.type === 'table' && (panel.options?.selectedFields?.length > 0 || panel.config?.options?.selectedFields?.length > 0)) {
+            const fields = panel.options?.selectedFields || panel.config?.options?.selectedFields || [];
+            if (fields.length > 0) {
+              // Extract all unique field names from selectedFields
+              setAvailableFields(fields);
+            }
+          }
         }
       } catch (err: any) {
         console.error('Error fetching data:', err);
@@ -116,34 +164,233 @@ const PanelForm: React.FC = () => {
     fetchData();
   }, [panelId]);
 
+  // Scan fields from query result (Simplified mode)
+  const scanFieldsFromQuery = async () => {
+    if (!panelData.dataSourceId || !panelData.queryText) {
+      setError('Please select a data source and enter a query first');
+      return;
+    }
+
+    setScanningFields(true);
+    setError(null);
+
+    try {
+      // Execute the query to get the result
+      const result = await metricService.executeFluxQuery(panelData.dataSourceId, panelData.queryText);
+      
+      // Extract field names from the result, preserving order
+      const fields: string[] = [];
+      
+      if (result && result.series && Array.isArray(result.series)) {
+        result.series.forEach((serie: any) => {
+          if (serie.fields && Array.isArray(serie.fields)) {
+            serie.fields.forEach((field: any) => {
+              // Skip time fields and only get value fields
+              // Use includes() to prevent duplicates while preserving order
+              if (field.type !== 'time' && field.name && !fields.includes(field.name)) {
+                fields.push(field.name);
+              }
+            });
+          }
+        });
+      }
+
+      if (fields.length === 0) {
+        setError('No fields found in query result. Make sure your query returns data.');
+      } else {
+        // Set fields in the order they appear in the query result
+        setAvailableFields(fields);
+      }
+    } catch (err: any) {
+      console.error('Error scanning fields:', err);
+      setError(`Failed to scan fields: ${err.message || 'Unknown error'}`);
+    } finally {
+      setScanningFields(false);
+    }
+  };
+
+  // Handle field selection (Simplified mode)
+  const handleFieldToggle = (fieldName: string) => {
+    setPanelData(prev => {
+      const currentFields = prev.options.selectedFields || [];
+      const newFields = currentFields.includes(fieldName)
+        ? currentFields.filter(f => f !== fieldName)
+        : [...currentFields, fieldName];
+      
+      return {
+        ...prev,
+        options: {
+          ...prev.options,
+          selectedFields: newFields
+        }
+      };
+    });
+  };
+
+  // Handle advanced query changes
+  const handleAdvancedQueryChange = (id: string, value: string) => {
+    setAdvancedQueries(prev =>
+      prev.map(q => q.id === id ? { ...q, query: value } : q)
+    );
+  };
+
+  // Add new query field (Advanced mode)
+  const addAdvancedQuery = () => {
+    const newId = (advancedQueries.length + 1).toString();
+    setAdvancedQueries(prev => [...prev, { id: newId, query: '' }]);
+  };
+
+  // Remove query field (Advanced mode)
+  const removeAdvancedQuery = (id: string) => {
+    if (advancedQueries.length > 1) {
+      setAdvancedQueries(prev => prev.filter(q => q.id !== id));
+    }
+  };
+
+  // Check if query has |> last()
+  const hasLastFunction = (query: string): boolean => {
+    return /\|\s*>\s*last\s*\(\s*\)/.test(query);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    // Validasi sebelum submit
-    if (!panelData.title || !panelData.dataSourceId || !panelData.queryText) {
-      setError('Harap lengkapi semua field yang diperlukan');
-      setLoading(false);
-      return;
-    }
+    // Validasi untuk NetFlow Time Series
+    if (panelData.type === 'netflow-timeseries') {
+      if (!panelData.title || !panelData.dataSourceId || !panelData.srcQuery || !panelData.dstQuery || !panelData.bytesQuery) {
+        setError('Harap lengkapi semua field yang diperlukan untuk NetFlow Time Series');
+        setLoading(false);
+        return;
+      }
+    } else if (panelData.type === 'table') {
+      // Validasi untuk Table
+      if (!panelData.title || !panelData.dataSourceId) {
+        setError('Harap lengkapi judul dan data source');
+        setLoading(false);
+        return;
+      }
 
-    // Jika ada hasil validasi query dan tidak valid, tampilkan error
-    if (queryValidationResult && !queryValidationResult.isValid) {
-      setError(`Query tidak valid: ${queryValidationResult.error}`);
-      setLoading(false);
-      return;
+      const mode = panelData.options.mode || 'simplified';
+      
+      if (mode === 'simplified') {
+        if (!panelData.queryText) {
+          setError('Harap masukkan query untuk mode simplified');
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Advanced mode - check if at least one query exists
+        const validQueries = advancedQueries.filter(q => q.query.trim() !== '');
+        if (validQueries.length === 0) {
+          setError('Harap masukkan minimal satu query untuk mode advanced');
+          setLoading(false);
+          return;
+        }
+
+        // Check for missing |> last() and warn
+        const queriesWithoutLast = validQueries.filter(q => !hasLastFunction(q.query));
+        if (queriesWithoutLast.length > 0) {
+          const confirmed = window.confirm(
+            'Beberapa query tidak memiliki |> last(). Ini akan menghasilkan lebih banyak data. ' +
+            'Fitur untuk menampilkan semua data akan datang segera. ' +
+            'Apakah Anda ingin melanjutkan?'
+          );
+          if (!confirmed) {
+            setLoading(false);
+            return;
+          }
+        }
+      }
+    } else {
+      // Validasi untuk tipe panel lainnya
+      if (!panelData.title || !panelData.dataSourceId || !panelData.queryText) {
+        setError('Harap lengkapi semua field yang diperlukan');
+        setLoading(false);
+        return;
+      }
+
+      // Jika ada hasil validasi query dan tidak valid, tampilkan error
+      if (queryValidationResult && !queryValidationResult.isValid) {
+        setError(`Query tidak valid: ${queryValidationResult.error}`);
+        setLoading(false);
+        return;
+      }
     }
 
     try {
-      const panelPayload = {
-        ...panelData,
-        queries: [{
-          refId: 'A',
-          dataSourceId: panelData.dataSourceId,
-          query: panelData.queryText
-        }]
-      };
+      let panelPayload;
+
+      // Build payload based on panel type
+      if (panelData.type === 'netflow-timeseries') {
+        panelPayload = {
+          ...panelData,
+          config: {
+            gridSpan: panelData.gridSpan || 1
+          },
+          queries: [
+            {
+              refId: 'src',
+              dataSourceId: panelData.dataSourceId,
+              query: panelData.srcQuery
+            },
+            {
+              refId: 'dst',
+              dataSourceId: panelData.dataSourceId,
+              query: panelData.dstQuery
+            },
+            {
+              refId: 'bytes',
+              dataSourceId: panelData.dataSourceId,
+              query: panelData.bytesQuery
+            }
+          ]
+        };
+      } else if (panelData.type === 'table') {
+        // Table panel with mode support
+        const mode = panelData.options.mode || 'simplified';
+        
+        if (mode === 'simplified') {
+          panelPayload = {
+            ...panelData,
+            config: {
+              gridSpan: panelData.gridSpan || 1
+            },
+            queries: [{
+              refId: 'A',
+              dataSourceId: panelData.dataSourceId,
+              query: panelData.queryText
+            }]
+          };
+        } else {
+          // Advanced mode - multiple queries
+          const validQueries = advancedQueries.filter(q => q.query.trim() !== '');
+          panelPayload = {
+            ...panelData,
+            config: {
+              gridSpan: panelData.gridSpan || 1
+            },
+            queries: validQueries.map((q, index) => ({
+              refId: `Q${index + 1}`,
+              dataSourceId: panelData.dataSourceId!,
+              query: q.query
+            }))
+          };
+        }
+      } else {
+        panelPayload = {
+          ...panelData,
+          config: {
+            gridSpan: panelData.gridSpan || 1
+          },
+          queries: [{
+            refId: 'A',
+            dataSourceId: panelData.dataSourceId,
+            query: panelData.queryText
+          }]
+        };
+      }
 
       if (isEditMode && panelId) {
         await metricService.updatePanel(panelId, panelPayload);
@@ -164,7 +411,7 @@ const PanelForm: React.FC = () => {
     const { name, value } = e.target;
     setPanelData(prev => ({
       ...prev,
-      [name]: name === 'refreshInterval' ? parseInt(value) : value
+      [name]: (name === 'refreshInterval' || name === 'gridSpan') ? parseInt(value) : value
     }));
   };
 
@@ -199,6 +446,13 @@ const PanelForm: React.FC = () => {
 
   // Check apakah form valid untuk enable/disable save button
   const isFormValid = () => {
+    if (panelData.type === 'netflow-timeseries') {
+      return panelData.title && 
+             panelData.dataSourceId && 
+             panelData.srcQuery && 
+             panelData.dstQuery && 
+             panelData.bytesQuery;
+    }
     return panelData.title && 
            panelData.dataSourceId && 
            panelData.queryText && 
@@ -290,6 +544,7 @@ const PanelForm: React.FC = () => {
                 <option value="text">Text</option>
                 <option value="stat">Stat</option>
                 <option value="timeseries">Time Series</option>
+                <option value="netflow-timeseries">NetFlow Time Series</option>
                 <option value="interface-status">Interface Status</option>
                 <option value="gauge">Gauge</option>
                 <option value="table">Table</option>
@@ -320,6 +575,27 @@ const PanelForm: React.FC = () => {
                 you can set longer intervals and use the reload button for real-time updates.
               </p>
             </div>
+
+            {/* Grid Span Selection */}
+            <div>
+              <label htmlFor="gridSpan" className="block text-sm font-medium text-gray-700">
+                Panel Width
+              </label>
+              <select
+                id="gridSpan"
+                name="gridSpan"
+                value={panelData.gridSpan || 1}
+                onChange={handleInputChange}
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+              >
+                <option value={1}>1 Column (Normal)</option>
+                <option value={2}>2 Columns (Wide)</option>
+                <option value={3}>3 Columns (Full Width)</option>
+              </select>
+              <p className="mt-1 text-sm text-gray-500">
+                How many grid columns this panel should span. Use wider layouts for time series and detailed visualizations.
+              </p>
+            </div>
           </div>
         </div>
               
@@ -347,6 +623,263 @@ const PanelForm: React.FC = () => {
               </select>
             </div>
           
+          {/* NetFlow Time Series - 3 Query Fields */}
+          {panelData.type === 'netflow-timeseries' ? (
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="srcQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                  Source IP Query
+                </label>
+                <textarea
+                  id="srcQuery"
+                  name="srcQuery"
+                  value={panelData.srcQuery || ''}
+                  onChange={handleInputChange}
+                  rows={4}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                  placeholder={`from(bucket: "telegraf")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["source"] == "192.168.238.101")
+  |> filter(fn: (r) => r["_measurement"] == "netflow")
+  |> filter(fn: (r) => r["_field"] == "src")
+  |> yield(name: "src")`}
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="dstQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                  Destination IP Query
+                </label>
+                <textarea
+                  id="dstQuery"
+                  name="dstQuery"
+                  value={panelData.dstQuery || ''}
+                  onChange={handleInputChange}
+                  rows={4}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                  placeholder={`from(bucket: "telegraf")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["source"] == "192.168.238.101")
+  |> filter(fn: (r) => r["_measurement"] == "netflow")
+  |> filter(fn: (r) => r["_field"] == "dst")
+  |> yield(name: "dst")`}
+                  required
+                />
+              </div>
+
+              <div>
+                <label htmlFor="bytesQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                  In_Bytes Query
+                </label>
+                <textarea
+                  id="bytesQuery"
+                  name="bytesQuery"
+                  value={panelData.bytesQuery || ''}
+                  onChange={handleInputChange}
+                  rows={4}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                  placeholder={`from(bucket: "telegraf")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["source"] == "192.168.238.101")
+  |> filter(fn: (r) => r["_measurement"] == "netflow")
+  |> filter(fn: (r) => r["_field"] == "in_bytes")
+  |> yield(name: "in_bytes")`}
+                  required
+                />
+              </div>
+            </div>
+          ) : panelData.type === 'table' ? (
+            /* Table-specific configuration */
+            <div className="space-y-6">
+              {/* Mode Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Table Mode
+                </label>
+                <div className="flex space-x-4">
+                  <label className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      name="tableMode"
+                      value="simplified"
+                      checked={panelData.options.mode === 'simplified'}
+                      onChange={() => {
+                        setPanelData(prev => ({
+                          ...prev,
+                          options: { ...prev.options, mode: 'simplified' }
+                        }));
+                        setAvailableFields([]);
+                      }}
+                      className="form-radio h-4 w-4 text-blue-600"
+                    />
+                    <span className="ml-2">Simplified Mode</span>
+                  </label>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      name="tableMode"
+                      value="advanced"
+                      checked={panelData.options.mode === 'advanced'}
+                      onChange={() => {
+                        setPanelData(prev => ({
+                          ...prev,
+                          options: { ...prev.options, mode: 'advanced' }
+                        }));
+                      }}
+                      className="form-radio h-4 w-4 text-blue-600"
+                    />
+                    <span className="ml-2">Advanced Mode</span>
+                  </label>
+                </div>
+                <p className="mt-1 text-sm text-gray-500">
+                  {panelData.options.mode === 'simplified' 
+                    ? 'Simplified: Enter one query and select fields to display'
+                    : 'Advanced: Enter multiple queries, each becomes a column'}
+                </p>
+              </div>
+
+              {/* Time Range Selection */}
+              <div>
+                <label htmlFor="timeRange" className="block text-sm font-medium text-gray-700">
+                  Time Range
+                </label>
+                <select
+                  id="timeRange"
+                  value={panelData.options.timeRange || '-5m'}
+                  onChange={(e) => {
+                    setPanelData(prev => ({
+                      ...prev,
+                      options: { ...prev.options, timeRange: e.target.value }
+                    }));
+                  }}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                >
+                  <option value="-5m">Last 5 minutes</option>
+                  <option value="-15m">Last 15 minutes</option>
+                  <option value="-30m">Last 30 minutes</option>
+                  <option value="-1h">Last 1 hour</option>
+                  <option value="-6h">Last 6 hours</option>
+                  <option value="-12h">Last 12 hours</option>
+                  <option value="-24h">Last 24 hours</option>
+                </select>
+              </div>
+
+              {panelData.options.mode === 'simplified' ? (
+                /* Simplified Mode UI */
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="tableQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                      Query
+                    </label>
+                    <textarea
+                      id="tableQuery"
+                      name="queryText"
+                      value={panelData.queryText || ''}
+                      onChange={handleInputChange}
+                      rows={6}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                      placeholder={`from(bucket: "telegraf")
+  |> range(start: -5m)
+  |> filter(fn: (r) => r["_measurement"] == "netflow")
+  |> last()`}
+                    />
+                    <p className="mt-1 text-sm text-gray-500">
+                      Enter a query that returns the fields you want to display in the table
+                    </p>
+                  </div>
+
+                  {/* Scan Fields Button */}
+                  {panelData.queryText && panelData.dataSourceId && (
+                    <button
+                      type="button"
+                      onClick={scanFieldsFromQuery}
+                      disabled={scanningFields}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+                    >
+                      {scanningFields ? 'Scanning...' : 'Scan Fields from Query'}
+                    </button>
+                  )}
+
+                  {/* Available Fields Selection */}
+                  {availableFields.length > 0 && (
+                    <div className="border rounded-md p-4 bg-gray-50">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Select Fields to Display
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {availableFields.map(field => (
+                          <label key={field} className="inline-flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={panelData.options.selectedFields?.includes(field) || false}
+                              onChange={() => handleFieldToggle(field)}
+                              className="form-checkbox h-4 w-4 text-blue-600"
+                            />
+                            <span className="ml-2 text-sm">{field}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-sm text-gray-500">
+                        Selected: {panelData.options.selectedFields?.length || 0} field(s)
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Advanced Mode UI */
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Queries (Each query becomes a column)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addAdvancedQuery}
+                      className="px-3 py-1 bg-green-600 text-white text-sm rounded-md hover:bg-green-700"
+                    >
+                      + Add Query
+                    </button>
+                  </div>
+
+                  {advancedQueries.map((query, index) => (
+                    <div key={query.id} className="border rounded-md p-4 bg-gray-50">
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Query {index + 1}
+                        </label>
+                        {advancedQueries.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeAdvancedQuery(query.id)}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      <textarea
+                        value={query.query}
+                        onChange={(e) => handleAdvancedQueryChange(query.id, e.target.value)}
+                        rows={4}
+                        className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                        placeholder={`from(bucket: "telegraf")
+  |> range(start: -5m)
+  |> filter(fn: (r) => r["_measurement"] == "netflow")
+  |> filter(fn: (r) => r["_field"] == "src")
+  |> last()`}
+                      />
+                      {query.query && !hasLastFunction(query.query) && (
+                        <p className="mt-1 text-sm text-yellow-600">
+                          ⚠️ Warning: Query doesn't have |{'>'} last(). This will return more data (coming soon feature).
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
           <div>
             <div className="flex items-center justify-between mb-2">
               <label htmlFor="queryText" className="block text-sm font-medium text-gray-700">
@@ -410,6 +943,7 @@ const PanelForm: React.FC = () => {
               />
             )}
           </div>
+          )}
 
             {(panelData.type === 'interface-status') && (
               <div className="space-y-4">

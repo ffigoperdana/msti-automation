@@ -4,12 +4,15 @@ import { useSource } from '../../context/SourceContext';
 import axios from 'axios';
 import metricService from '../../services/metricService';
 
-// Tipe panel yang didukung
+// Tipe panel yang didukung - matches PanelForm types
 const PANEL_TYPES = [
-  { id: 'time-series', name: 'Time Series', icon: '📈' },
+  { id: 'text', name: 'Text', icon: '📝' },
+  { id: 'stat', name: 'Stat', icon: '📊' },
+  { id: 'timeseries', name: 'Time Series', icon: '📈' },
+  { id: 'netflow-timeseries', name: 'NetFlow Time Series', icon: '🌊' },
+  { id: 'interface-status', name: 'Interface Status', icon: '🔌' },
   { id: 'gauge', name: 'Gauge', icon: '⏲️' },
   { id: 'table', name: 'Table', icon: '🔢' },
-  { id: 'interface', name: 'Interface Status', icon: '🔌' },
   { id: 'chord-diagram', name: 'Chord Diagram', icon: '🌐' },
 ];
 
@@ -82,6 +85,7 @@ interface PanelData {
   type: string;
   dataSourceId: string;
   query: string;
+  gridSpan?: number;
 }
 
 const DEFAULT_PANEL: PanelData = {
@@ -89,7 +93,8 @@ const DEFAULT_PANEL: PanelData = {
   description: '',
   type: PANEL_TYPES[0].id,
   dataSourceId: '',
-  query: ''
+  query: '',
+  gridSpan: 1
 };
 
 const NewDashboard: React.FC = () => {
@@ -110,6 +115,11 @@ const NewDashboard: React.FC = () => {
     to: 'now()'
   });
   const [queryText, setQueryText] = useState('from(bucket: "metrics")\n  |> range(start: -24h)\n  |> filter(fn: (r) => r._measurement == "cpu")\n  |> mean()');
+  
+  // NetFlow Time Series queries
+  const [srcQuery, setSrcQuery] = useState('');
+  const [dstQuery, setDstQuery] = useState('');
+  const [bytesQuery, setBytesQuery] = useState('');
 
   // State untuk interface status
   const [selectedInterface] = useState(INTERFACE_OPTIONS[0].id);
@@ -155,7 +165,7 @@ const NewDashboard: React.FC = () => {
 
   // Update queryText berdasarkan panel type, interface, dan time range
   useEffect(() => {
-    if (selectedPanel === 'interface') {
+    if (selectedPanel === 'interface-status') {
       const interfaceDetails = INTERFACE_OPTIONS.find(i => i.id === selectedInterface);
       const newQuery = `timeStart = uint(v: ${timeRange.from})
 timeStop = uint(v: ${timeRange.to})
@@ -187,7 +197,7 @@ from(bucket: "${selectedDataSource}")
       setApiData(response.data);
       
       // Update query text berdasarkan data yang diterima
-      if (selectedPanel === 'interface' && response.data.network_status) {
+      if (selectedPanel === 'interface-status' && response.data.network_status) {
         const interfaceData = response.data.network_status.find(
           (item: NetworkStatus) => item.interface_id === selectedInterface
         );
@@ -269,7 +279,7 @@ from(bucket: "${selectedDataSource}")
     const cleanMetricName = metricName.split(':').pop() || metricName;
     
     switch (panelType) {
-      case 'interface':
+      case 'interface-status':
         return `from(bucket: "${selectedDataSource}")
   |> range(start: duration(v: -1h))
   |> filter(fn: (r) => r["_measurement"] == "sys/intf")
@@ -279,12 +289,20 @@ from(bucket: "${selectedDataSource}")
   |> aggregateWindow(every: 10s, fn: last, createEmpty: false)
   |> yield(name: "last")`;
 
-      case 'time-series':
+      case 'timeseries':
         return `from(bucket: "${selectedDataSource}")
   |> range(start: duration(v: -1h))
   |> filter(fn: (r) => r["_measurement"] == "${cleanMetricName}")
   |> aggregateWindow(every: 10s, fn: mean)
   |> yield(name: "mean")`;
+
+      case 'text':
+      case 'stat':
+        return `from(bucket: "${selectedDataSource}")
+  |> range(start: duration(v: -1h))
+  |> filter(fn: (r) => r["_measurement"] == "${cleanMetricName}")
+  |> last()
+  |> yield(name: "last")`;
 
       case 'gauge':
         return `from(bucket: "${selectedDataSource}")
@@ -336,7 +354,7 @@ from(bucket: "${selectedDataSource}")
     const { name, value } = e.target;
     setPanelData(prev => ({
       ...prev,
-      [name]: value
+      [name]: name === 'gridSpan' ? parseInt(value) : value
     }));
   };
 
@@ -345,13 +363,54 @@ from(bucket: "${selectedDataSource}")
     setLoading(true);
     setError(null);
 
-    if (!panelData.title || !selectedDataSource || !queryText) {
-      setError('Please fill in all required fields');
-      setLoading(false);
-      return;
+    // Validation for NetFlow Time Series
+    if (selectedPanel === 'netflow-timeseries') {
+      if (!panelData.title || !selectedDataSource || !srcQuery || !dstQuery || !bytesQuery) {
+        setError('Please fill in all required fields (title, data source, and 3 queries)');
+        setLoading(false);
+        return;
+      }
+    } else {
+      if (!panelData.title || !selectedDataSource || !queryText) {
+        setError('Please fill in all required fields');
+        setLoading(false);
+        return;
+      }
     }
 
     try {
+      // Build queries array based on panel type
+      let queries;
+      if (selectedPanel === 'netflow-timeseries') {
+        queries = [
+          {
+            name: 'Source Query',
+            refId: 'src',
+            query: srcQuery,
+            dataSourceId: selectedDataSource
+          },
+          {
+            name: 'Destination Query',
+            refId: 'dst',
+            query: dstQuery,
+            dataSourceId: selectedDataSource
+          },
+          {
+            name: 'Bytes Query',
+            refId: 'bytes',
+            query: bytesQuery,
+            dataSourceId: selectedDataSource
+          }
+        ];
+      } else {
+        queries = [{
+          name: `${panelData.title} Query`,
+          refId: 'A',
+          query: queryText,
+          dataSourceId: selectedDataSource
+        }];
+      }
+
       // Buat dashboard dengan panel pertama
       const dashboardPayload = {
         name: dashboardData.name || 'New Dashboard',
@@ -366,15 +425,13 @@ from(bucket: "${selectedDataSource}")
           description: panelData.description || '',
           width: 12,
           height: 8,
+          config: {
+            gridSpan: panelData.gridSpan || 1
+          },
           options: {},
           position: { x: 0, y: 0 },
           dataSourceId: selectedDataSource,
-          queries: [{
-            name: `${panelData.title} Query`,
-            refId: 'A',
-            query: queryText,
-            dataSourceId: selectedDataSource
-          }]
+          queries: queries
         }]
       };
 
@@ -911,6 +968,27 @@ from(bucket: "${selectedDataSource}")
                       placeholder="Enter panel description (optional)"
                     />
                   </div>
+
+                  {/* Grid Span Selection */}
+                  <div>
+                    <label htmlFor="gridSpan" className="block text-sm font-medium text-gray-700">
+                      Panel Width
+                    </label>
+                    <select
+                      id="gridSpan"
+                      name="gridSpan"
+                      value={panelData.gridSpan || 1}
+                      onChange={handlePanelInputChange}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                    >
+                      <option value={1}>1 Column (Normal)</option>
+                      <option value={2}>2 Columns (Wide)</option>
+                      <option value={3}>3 Columns (Full Width)</option>
+                    </select>
+                    <p className="mt-1 text-sm text-gray-500">
+                      How many grid columns this panel should span. Use wider layouts for time series and detailed visualizations.
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -968,6 +1046,72 @@ from(bucket: "${selectedDataSource}")
           
                   {/* Query Section */}
           <div>
+            {selectedPanel === 'netflow-timeseries' ? (
+              // NetFlow Time Series - 3 Query Fields
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="srcQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                    Source IP Query
+                  </label>
+                  <textarea
+                    id="srcQuery"
+                    name="srcQuery"
+                    value={srcQuery}
+                    onChange={(e) => setSrcQuery(e.target.value)}
+                    rows={6}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                    placeholder={`base =
+  from(bucket: "telegraf")
+    |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+    |> filter(fn: (r) => r["source"] == "192.168.238.101")
+    |> filter(fn: (r) => r["_measurement"] == "netflow")
+
+src =
+  base
+    |> filter(fn: (r) => r["_field"] == "src")
+    |> yield(name: "src")`}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="dstQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                    Destination IP Query
+                  </label>
+                  <textarea
+                    id="dstQuery"
+                    name="dstQuery"
+                    value={dstQuery}
+                    onChange={(e) => setDstQuery(e.target.value)}
+                    rows={6}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                    placeholder={`dst =
+  base
+    |> filter(fn: (r) => r["_field"] == "dst")
+    |> yield(name: "dst")`}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="bytesQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                    In_Bytes Query
+                  </label>
+                  <textarea
+                    id="bytesQuery"
+                    name="bytesQuery"
+                    value={bytesQuery}
+                    onChange={(e) => setBytesQuery(e.target.value)}
+                    rows={6}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                    placeholder={`bytes =
+  base
+    |> filter(fn: (r) => r["_field"] == "in_bytes")
+    |> yield(name: "in_bytes")`}
+                  />
+                </div>
+              </div>
+            ) : (
+              // Regular single query for other panel types
+              <>
                     <label htmlFor="query" className="block text-sm font-medium text-gray-700">
               Flux Query
             </label>
@@ -996,6 +1140,8 @@ from(bucket: "${selectedDataSource}")
                         {isValidating ? 'Memvalidasi...' : 'Validasi Query'}
                       </button>
                     </div>
+              </>
+            )}
           </div>
           
                   {/* Preview Error */}

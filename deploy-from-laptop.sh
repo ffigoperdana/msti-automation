@@ -9,7 +9,7 @@ echo "🚀 MSTI Automation - Deploy from Laptop"
 echo "========================================"
 
 # Configuration
-VPS_HOST="cisco@192.168.238.10"
+VPS_HOST="cisco@10.20.50.125"
 DEPLOY_DIR="/opt/msti-automation"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/deploy_key}"  # Default to deploy_key, can be overridden
 
@@ -60,7 +60,7 @@ check_vps_connection() {
         SSH_WORKING=true
     else
         error "❌ Cannot connect to VPS. Check your VPN connection and SSH setup."
-        error "   Run: ssh -i ~/.ssh/deploy_key cisco@192.168.238.10 to test connection manually"
+        error "   Run: ssh -i ~/.ssh/deploy_key cisco@10.20.50.125 to test connection manually"
         exit 1
     fi
 }
@@ -147,12 +147,25 @@ sync_with_scp() {
         SSH_OPTS="$SSH_KEY_OPTS -o ControlMaster=auto -o ControlPath=/tmp/ssh-%r@%h:%p -o ControlPersist=60s"
     fi
     
+    # Backup .env file if it exists on VPS
+    ssh $SSH_OPTS "$VPS_HOST" "if [ -f $DEPLOY_DIR/deployment/.env ]; then cp $DEPLOY_DIR/deployment/.env /tmp/.env.backup; fi"
+    
     # Remove old deployment directory and recreate
     ssh $SSH_OPTS "$VPS_HOST" "rm -rf $DEPLOY_DIR/deployment && mkdir -p $DEPLOY_DIR/deployment"
     
     # Copy all files in one batch to reduce SSH connections
     log "Copying deployment files..."
     scp $SSH_OPTS -r ./deployment/* "$VPS_HOST:$DEPLOY_DIR/deployment/"
+    
+    # Copy .env file explicitly (in case it's hidden from glob)
+    if [ -f ./deployment/.env ]; then
+        log "Copying .env file..."
+        scp $SSH_OPTS ./deployment/.env "$VPS_HOST:$DEPLOY_DIR/deployment/.env"
+    else
+        # Restore from backup if local .env doesn't exist
+        warning ".env file not found locally, trying to restore from VPS backup..."
+        ssh $SSH_OPTS "$VPS_HOST" "if [ -f /tmp/.env.backup ]; then cp /tmp/.env.backup $DEPLOY_DIR/deployment/.env; fi"
+    fi
 }
 
 # Deploy to VPS
@@ -195,9 +208,9 @@ EOF
         # Show access URLs
         echo ""
         echo "🌐 Application URLs:"
-        echo "   Frontend: http://192.168.238.10:5172 (Blue) or http://192.168.238.10:5173 (Green)"
-        echo "   Backend:  http://192.168.238.10:3001"
-        echo "   Webhook:  http://192.168.238.10:3002"
+        echo "   Frontend: http://10.20.50.125:5172 (Blue) or http://10.20.50.125:5173 (Green)"
+        echo "   Backend:  http://10.20.50.125:3001"
+        echo "   Webhook:  http://10.20.50.125:3002"
         echo ""
     else
         error "❌ Deployment failed!"
@@ -245,7 +258,7 @@ EOF
 cleanup_ssh() {
     # Clean up any leftover SSH control sockets
     if [[ "$OSTYPE" != "msys" && "$OSTYPE" != "cygwin" ]]; then
-        rm -f /tmp/ssh-*@192.168.238.10:22 2>/dev/null || true
+        rm -f /tmp/ssh-*@10.20.50.125:22 2>/dev/null || true
     fi
 }
 

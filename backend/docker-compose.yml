@@ -12,6 +12,7 @@ services:
       - ./prisma:/app/prisma
       - ./node_modules:/app/node_modules
       - ./entrypoint.sh:/app/entrypoint.sh
+      - /etc/telegraf/telegraf.d:/telegraf-configs:rw
     environment:
       - NODE_ENV=development
       - DATABASE_URL=${DATABASE_URL}
