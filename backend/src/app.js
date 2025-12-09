@@ -14,8 +14,8 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:5172',
-  'http://192.168.238.10:5173',
-  'http://192.168.238.10:5172',
+  'http://10.20.50.125:5173',
+  'http://10.20.50.125:5172',
   process.env.FRONTEND_URL
 ].filter(Boolean); // Remove undefined values
 

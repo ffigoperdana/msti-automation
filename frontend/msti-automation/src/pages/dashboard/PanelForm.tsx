@@ -639,7 +639,7 @@ const PanelForm: React.FC = () => {
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
                   placeholder={`from(bucket: "telegraf")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn: (r) => r["source"] == "192.168.238.101")
+  |> filter(fn: (r) => r["source"] == "10.20.50.125")
   |> filter(fn: (r) => r["_measurement"] == "netflow")
   |> filter(fn: (r) => r["_field"] == "src")
   |> yield(name: "src")`}
@@ -660,7 +660,7 @@ const PanelForm: React.FC = () => {
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
                   placeholder={`from(bucket: "telegraf")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn: (r) => r["source"] == "192.168.238.101")
+  |> filter(fn: (r) => r["source"] == "10.20.50.125")
   |> filter(fn: (r) => r["_measurement"] == "netflow")
   |> filter(fn: (r) => r["_field"] == "dst")
   |> yield(name: "dst")`}
@@ -681,7 +681,7 @@ const PanelForm: React.FC = () => {
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
                   placeholder={`from(bucket: "telegraf")
   |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
-  |> filter(fn: (r) => r["source"] == "192.168.238.101")
+  |> filter(fn: (r) => r["source"] == "10.20.50.125")
   |> filter(fn: (r) => r["_measurement"] == "netflow")
   |> filter(fn: (r) => r["_field"] == "in_bytes")
   |> yield(name: "in_bytes")`}

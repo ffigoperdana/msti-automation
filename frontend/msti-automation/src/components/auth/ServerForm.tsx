@@ -6,7 +6,7 @@ interface ServerFormProps {
 }
 
 const ServerForm: React.FC<ServerFormProps> = ({ onSubmit, onCancel }) => {
-  const [address, setAddress] = useState('192.168.238.10');
+  const [address, setAddress] = useState('10.20.50.125');
   const [port, setPort] = useState('3001');
   const [environment, setEnvironment] = useState<'blue' | 'green'>('blue');
 
