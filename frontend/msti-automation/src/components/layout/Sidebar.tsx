@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import useAuthStore from '../../store/authStore';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ interface MenuItem {
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const [openAnsibleSubmenu, setOpenAnsibleSubmenu] = useState(false);
+  const { isAdmin } = useAuthStore();
 
   // Tutup sidebar otomatis saat resize ke desktop
   useEffect(() => {
@@ -79,8 +81,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         ]}
       ]
     },
-    { title: 'Settings', path: '/settings', icon: '⚙️' },
   ];
+
+  // Add Settings menu only for admin users
+  if (isAdmin()) {
+    menuItems.push({ 
+      title: 'Settings', 
+      icon: '⚙️',
+      children: [
+        { title: 'User Management', path: '/settings/users' }
+      ]
+    });
+  }
 
   const toggleMenu = (title: string) => {
     setOpenMenus(prev => ({

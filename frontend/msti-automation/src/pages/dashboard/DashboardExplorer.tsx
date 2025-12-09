@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import metricService from '../../services/metricService';
+import useAuthStore from '../../store/authStore';
 
 interface DashboardConfig {
   description?: string;
@@ -20,6 +21,7 @@ const DashboardExplorer: React.FC = () => {
   const [dashboards, setDashboards] = useState<Dashboard[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { canWrite } = useAuthStore();
 
   // Fetch dashboards
   useEffect(() => {
@@ -100,12 +102,14 @@ const DashboardExplorer: React.FC = () => {
           </svg>
           <h3 className="mt-4 text-lg font-medium text-gray-800">No dashboards yet</h3>
           <p className="mt-2 text-gray-600">Get started by creating your first dashboard.</p>
-          <Link
-            to="/dashboard/new"
-            className="mt-4 inline-block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-          >
-            Create New Dashboard
-          </Link>
+          {canWrite() && (
+            <Link
+              to="/dashboard/new"
+              className="mt-4 inline-block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            >
+              Create New Dashboard
+            </Link>
+          )}
         </div>
       );
     }
@@ -144,12 +148,14 @@ const DashboardExplorer: React.FC = () => {
                   >
                     View
                   </Link>
-                  <button
-                    onClick={() => handleDeleteDashboard(dashboard.id)}
-                    className="px-3 py-1.5 text-sm bg-transparent border border-red-300 text-red-700 rounded hover:bg-red-50 transition-colors"
-                  >
-                    Delete
-                  </button>
+                  {canWrite() && (
+                    <button
+                      onClick={() => handleDeleteDashboard(dashboard.id)}
+                      className="px-3 py-1.5 text-sm bg-transparent border border-red-300 text-red-700 rounded hover:bg-red-50 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -171,17 +177,19 @@ const DashboardExplorer: React.FC = () => {
     <div className="space-y-6">
       {/* Header Section */}
       <div className="bg-white p-4 rounded-lg shadow-sm">
-        <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
+        <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-gray-800">Dashboards</h1>
-          <Link 
-            to="/dashboard/new" 
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Dashboard
-          </Link>
+          {canWrite() && (
+            <Link 
+              to="/dashboard/new" 
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Dashboard
+            </Link>
+          )}
         </div>
         
         {/* Search Controls */}

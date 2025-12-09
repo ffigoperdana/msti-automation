@@ -28,6 +28,7 @@ import NewDiscovery from './pages/automation/discovery/NewDiscovery'
 import DiscoveryDetail from './pages/automation/discovery/DiscoveryDetail'
 import TelegrafList from './pages/automation/telegraf/TelegrafList'
 import TelegrafForm from './pages/automation/telegraf/TelegrafForm'
+import UserManagement from './pages/settings/UserManagement'
 import Login from './pages/Login'
 import { SourceProvider } from './context/SourceContext'
 import { ApiProvider } from './context/ApiContext'
@@ -128,6 +129,9 @@ function App() {
                     <Route path="/automation/telegraf" element={<TelegrafList />} />
                     <Route path="/automation/telegraf/new" element={<TelegrafForm />} />
                     <Route path="/automation/telegraf/edit/:filename" element={<TelegrafForm />} />
+
+                    {/* Settings Routes */}
+                    <Route path="/settings/users" element={<UserManagement />} />
                   </Routes>
                 </Layout>
               </ProtectedRoute>

@@ -5,7 +5,7 @@ import { updateApiBaseURL } from '../services/api';
 interface User {
   id: string;
   email: string;
-  role: string;
+  role: 'admin' | 'editor' | 'viewer';
 }
 
 interface AuthState {
@@ -16,6 +16,10 @@ interface AuthState {
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
   setUser: (user: User | null) => void;
+  isAdmin: () => boolean;
+  isEditor: () => boolean;
+  isViewer: () => boolean;
+  canWrite: () => boolean;
 }
 
 const useAuthStore = create<AuthState>()(
@@ -159,6 +163,27 @@ const useAuthStore = create<AuthState>()(
           user, 
           isAuthenticated: !!user 
         });
+      },
+
+      // Role helpers
+      isAdmin: () => {
+        const state = _get();
+        return state.user?.role === 'admin';
+      },
+
+      isEditor: () => {
+        const state = _get();
+        return state.user?.role === 'editor' || state.user?.role === 'admin';
+      },
+
+      isViewer: () => {
+        const state = _get();
+        return state.user?.role === 'viewer';
+      },
+
+      canWrite: () => {
+        const state = _get();
+        return state.user?.role === 'admin' || state.user?.role === 'editor';
       },
     }),
     {

@@ -22,6 +22,7 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
   timeout: 30000, // 30 detik
+  withCredentials: true, // CRITICAL: Send cookies with requests
 });
 
 // Update baseURL when localStorage changes
