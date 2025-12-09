@@ -59,6 +59,25 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
   // Use backend data if available, otherwise fall back to prop data
   const activeData = backendData || data;
 
+  // Helper function to detect if field is bandwidth (Octets) and should be converted to Mbps
+  const shouldConvertToMbps = (seriesName: string): boolean => {
+    const name = seriesName.toLowerCase();
+    return name.includes('octets') || name.includes('ifin') || name.includes('ifout');
+  };
+
+  // Helper function to convert bps to Mbps
+  const bpsToMbps = (bps: number): number => {
+    return bps / 1_000_000; // Convert to Mbps
+  };
+
+  // Helper function to format value with unit
+  const formatValue = (value: number, seriesName: string): string => {
+    if (shouldConvertToMbps(seriesName)) {
+      return bpsToMbps(value).toFixed(2) + ' Mbps';
+    }
+    return value.toLocaleString();
+  };
+
   // Process data for ECharts - SIMPLIFIED!
   const processedData: TimeSeriesData[] = useMemo(() => {
     if (!activeData?.series || activeData.series.length === 0) {
@@ -76,9 +95,15 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
     return activeData.series.map((serie: any, index: number) => {
       const color = colors[index % colors.length];
       
+      // Convert data to Mbps if it's bandwidth data
+      const shouldConvert = shouldConvertToMbps(serie.name);
+      const convertedData = shouldConvert 
+        ? serie.data.map(([time, value]: [number, number]) => [time, bpsToMbps(value)])
+        : serie.data;
+      
       return {
         name: serie.name,
-        data: serie.data, // Already [time, value] format!
+        data: convertedData, // Converted to Mbps if needed
         type: 'line' as const,
         smooth: true,
         symbol: 'none',
@@ -140,10 +165,22 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
           let tooltip = `<div><strong>${time}</strong></div>`;
           
           params.forEach((param: any) => {
-            const value = typeof param.value[1] === 'number' 
-              ? param.value[1].toLocaleString() 
-              : param.value[1];
-            tooltip += `<div style="color: ${param.color}">● ${param.seriesName}: ${value}</div>`;
+            const rawValue = param.value[1];
+            const seriesName = param.seriesName;
+            
+            // Format value (already converted to Mbps if needed in processedData)
+            let displayValue: string;
+            if (shouldConvertToMbps(seriesName)) {
+              displayValue = typeof rawValue === 'number' 
+                ? rawValue.toFixed(2) + ' Mbps'
+                : rawValue;
+            } else {
+              displayValue = typeof rawValue === 'number' 
+                ? rawValue.toLocaleString() 
+                : rawValue;
+            }
+            
+            tooltip += `<div style="color: ${param.color}">● ${seriesName}: ${displayValue}</div>`;
           });
           
           return tooltip;
@@ -173,6 +210,17 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
         nameGap: 40,
         axisLabel: {
           formatter: function(value: number) {
+            // Check if any series is bandwidth data
+            const hasBandwidthData = processedData.some(s => shouldConvertToMbps(s.name));
+            
+            if (hasBandwidthData) {
+              // Already in Mbps, just format nicely
+              if (value >= 1000) return (value / 1000).toFixed(1) + 'K Mbps';
+              if (value >= 1) return value.toFixed(1) + ' Mbps';
+              return value.toFixed(2) + ' Mbps';
+            }
+            
+            // Regular formatting for non-bandwidth data
             if (value >= 1e9) return (value / 1e9).toFixed(1) + 'B';
             if (value >= 1e6) return (value / 1e6).toFixed(1) + 'M';
             if (value >= 1e3) return (value / 1e3).toFixed(1) + 'K';
@@ -264,6 +312,15 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
                     const max = values.length ? Math.max(...values) : 0;
                     const avg = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
                     
+                    // Check if this is bandwidth data (already converted to Mbps)
+                    const isBandwidth = shouldConvertToMbps(serie.name);
+                    const formatNumber = (val: number) => {
+                      if (isBandwidth) {
+                        return val.toFixed(2) + ' Mbps';
+                      }
+                      return val.toLocaleString();
+                    };
+                    
                     return (
                       <tr key={index} className="border-t">
                         <td className="px-3 py-2">
@@ -275,10 +332,10 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
                             <span className="truncate block" title={serie.name}>{serie.name}</span>
                           </div>
                         </td>
-                        <td className="px-3 py-2 whitespace-nowrap">{current.toLocaleString()}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{min.toLocaleString()}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{max.toLocaleString()}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{avg.toLocaleString()}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatNumber(current)}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatNumber(min)}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatNumber(max)}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{formatNumber(avg)}</td>
                       </tr>
                     );
                   })}

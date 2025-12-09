@@ -9,19 +9,20 @@ import {
   getSourceMetrics,
   executeSourceQuery
 } from '../controllers/sourceController.js';
+import { requireAuth, requireWrite } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 // Data Source routes
-router.get('/', getSources);
-router.post('/test', testSource);
-router.get('/:id', getSource);
-router.post('/', createSource);
-router.put('/:id', updateSource);
-router.delete('/:id', deleteSource);
+router.get('/', requireAuth, getSources);
+router.post('/test', requireAuth, testSource);
+router.get('/:id', requireAuth, getSource);
+router.post('/', requireWrite, createSource);
+router.put('/:id', requireWrite, updateSource);
+router.delete('/:id', requireWrite, deleteSource);
 
 // Metrics routes
-router.get('/:id/metrics', getSourceMetrics);
-router.post('/:id/query', executeSourceQuery);
+router.get('/:id/metrics', requireAuth, getSourceMetrics);
+router.post('/:id/query', requireAuth, executeSourceQuery);
 
 export default router; 

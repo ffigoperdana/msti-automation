@@ -26,39 +26,70 @@ const Interface: React.FC<InterfaceProps> = ({ queryResult }) => {
       try {
         setLoading(true);
         
+        console.log('🔌 Interface - Processing data:', JSON.stringify(queryResult, null, 2));
+        
         // Use queryResult prop instead of making API call
         if (queryResult && Object.keys(queryResult).length > 0) {
           // Get the first query result
           const firstQueryKey = Object.keys(queryResult)[0];
           const firstQueryResult = queryResult[firstQueryKey];
           
+          console.log('🔌 Interface - First query result:', firstQueryResult);
+          
           if (firstQueryResult?.series?.[0]?.fields) {
             const fields = firstQueryResult.series[0].fields;
+            
+            console.log('🔌 Interface - Fields:', fields);
             
             const valueField = fields.find((f: Field) => 
               f.name === "Value" || 
               f.name === "_value" || 
               f.name.includes("value") ||
-              f.type === "string"
+              f.name.includes("ifOperStatus") ||
+              f.type === "string" ||
+              f.type === "number"
             );
             const timeField = fields.find((f: Field) => f.name === "Time" || f.type === "time");
+            
+            console.log('🔌 Interface - Value field:', valueField);
+            console.log('🔌 Interface - Time field:', timeField);
             
             if (valueField && valueField.values && valueField.values.length > 0) {
               const latestValue = valueField.values[valueField.values.length - 1];
               const latestTime = timeField ? timeField.values[timeField.values.length - 1] : null;
+              
+              console.log('🔌 Interface - Latest value:', latestValue, 'Type:', typeof latestValue);
+              console.log('🔌 Interface - Latest time:', latestTime);
               
               if (latestTime) {
                 setLastUpdate(new Date(latestTime).toLocaleString());
               }
               
               // Convert value to status
+              // SNMP ifOperStatus values: 1=up, 2=down, 3=testing, 4=unknown, 5=dormant, 6=notPresent, 7=lowerLayerDown
               let newStatus = 'UNKNOWN';
               if (typeof latestValue === 'string') {
                 newStatus = latestValue.toUpperCase();
               } else if (typeof latestValue === 'number') {
-                newStatus = latestValue === 1 ? 'UP' : 'DOWN';
+                console.log('🔌 Interface - Converting number to status:', latestValue);
+                if (latestValue === 1) {
+                  newStatus = 'UP';
+                } else if (latestValue === 2) {
+                  newStatus = 'DOWN';
+                } else if (latestValue === 3) {
+                  newStatus = 'TESTING';
+                } else if (latestValue === 5) {
+                  newStatus = 'DORMANT';
+                } else if (latestValue === 6) {
+                  newStatus = 'NOT PRESENT';
+                } else if (latestValue === 7) {
+                  newStatus = 'LOWER LAYER DOWN';
+                } else {
+                  newStatus = 'UNKNOWN';
+                }
               }
               
+              console.log('🔌 Interface - Final status:', newStatus);
               setStatus(newStatus);
               setError(null);
             } else {
@@ -88,7 +119,8 @@ const Interface: React.FC<InterfaceProps> = ({ queryResult }) => {
   return (
     <div className={`flex flex-col items-center justify-center p-6 rounded-lg ${
       status === 'UP' ? 'bg-green-50' : 
-      status === 'DOWN' ? 'bg-red-50' : 
+      status === 'DOWN' || status === 'LOWER LAYER DOWN' ? 'bg-red-50' : 
+      status === 'TESTING' || status === 'DORMANT' ? 'bg-yellow-50' : 
       'bg-gray-50'
     }`}>
       {loading ? (
@@ -104,9 +136,10 @@ const Interface: React.FC<InterfaceProps> = ({ queryResult }) => {
         <div className="text-red-500">{error}</div>
       ) : (
         <>
-          <div className={`text-7xl font-bold ${
+          <div className={`text-6xl font-bold ${
             status === 'UP' ? 'text-green-600' : 
-            status === 'DOWN' ? 'text-red-600' : 
+            status === 'DOWN' || status === 'LOWER LAYER DOWN' ? 'text-red-600' : 
+            status === 'TESTING' || status === 'DORMANT' ? 'text-yellow-600' : 
             'text-gray-400'
           }`}>
             {status}

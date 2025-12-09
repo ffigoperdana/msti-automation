@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import useAuthStore from '../../store/authStore';
 
 interface AlertRule {
   id: string;
@@ -65,6 +66,7 @@ const AlertRules: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [alertRules, setAlertRules] = useState<AlertRule[]>(MOCK_ALERT_RULES);
+  const { canWrite } = useAuthStore();
 
   // Filter alert rules berdasarkan status dan pencarian
   const filteredRules = alertRules.filter(rule => {
@@ -93,15 +95,17 @@ const AlertRules: React.FC = () => {
       <div className="bg-white p-4 rounded-lg shadow-sm">
         <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
           <h1 className="text-2xl font-semibold text-gray-800">Alert Rules</h1>
-          <Link 
-            to="/alerting/rules/new" 
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Alert Rule
-          </Link>
+          {canWrite() && (
+            <Link 
+              to="/alerting/rules/new" 
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Alert Rule
+            </Link>
+          )}
         </div>
         
         {/* Filter controls */}
@@ -222,13 +226,21 @@ const AlertRules: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
-                      <Link to={`/alerting/rules/edit/${rule.id}`} className="text-blue-600 hover:text-blue-900">
-                        Edit
-                      </Link>
-                      <span className="text-gray-300">|</span>
-                      <button className="text-red-600 hover:text-red-900">
-                        Delete
-                      </button>
+                      {canWrite() ? (
+                        <>
+                          <Link to={`/alerting/rules/edit/${rule.id}`} className="text-blue-600 hover:text-blue-900">
+                            Edit
+                          </Link>
+                          <span className="text-gray-300">|</span>
+                          <button className="text-red-600 hover:text-red-900">
+                            Delete
+                          </button>
+                        </>
+                      ) : (
+                        <Link to={`/alerting/rules/view/${rule.id}`} className="text-blue-600 hover:text-blue-900">
+                          View
+                        </Link>
+                      )}
                     </div>
                   </td>
                 </tr>

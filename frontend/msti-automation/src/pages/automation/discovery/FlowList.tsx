@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../services/api';
+import useAuthStore from '../../../store/authStore';
 
 interface FlowAnalytic {
   id: string;
@@ -15,6 +16,7 @@ const FlowList: React.FC = () => {
   const navigate = useNavigate();
   const [flows, setFlows] = useState<FlowAnalytic[]>([]);
   const [loading, setLoading] = useState(true);
+  const { canWrite } = useAuthStore();
 
   useEffect(() => {
     fetchFlows();
@@ -76,7 +78,9 @@ const FlowList: React.FC = () => {
           <h1 className="text-2xl font-semibold text-gray-800">Flow Analytic</h1>
           <p className="text-gray-600 mt-1">Analisis alur NetFlow berdasarkan query InfluxDB.</p>
         </div>
-        <button onClick={() => navigate('/automation/flow/new')} className="px-4 py-2 bg-blue-600 text-white rounded-md">Create New Job</button>
+        {canWrite() && (
+          <button onClick={() => navigate('/automation/flow/new')} className="px-4 py-2 bg-blue-600 text-white rounded-md">Create New Job</button>
+        )}
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow-sm">
@@ -112,12 +116,14 @@ const FlowList: React.FC = () => {
                       >
                         View
                       </button>
-                      <button 
-                        onClick={() => handleDeleteFlow(flow.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
+                      {canWrite() && (
+                        <button 
+                          onClick={() => handleDeleteFlow(flow.id)}
+                          className="text-red-600 hover:text-red-900"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

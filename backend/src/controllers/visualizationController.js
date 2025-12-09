@@ -348,7 +348,8 @@ export const executePanelQuery = async(req, res) => {
                     // Manual processing to preserve all interfaces
                     const groupedByInterface = {};
                     rawData.forEach(row => {
-                      const interfaceId = row.id || 'unknown';
+                      // Use ifDescr for interface name (e.g., GigabitEthernet0/10)
+                      const interfaceId = row.ifDescr || row.ifName || row.id || 'unknown';
                       const key = `${row._measurement}::${row._field}::${interfaceId}`;
                       
                       if (!groupedByInterface[key]) {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { API_URL } from '../../../config';
+import useAuthStore from '../../../store/authStore';
 
 interface TelegrafConfig {
   filename: string;
@@ -24,6 +25,7 @@ const TelegrafList: React.FC = () => {
   const [telegrafStatus, setTelegrafStatus] = useState<TelegrafStatus | null>(null);
   const [isRestarting, setIsRestarting] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const { canWrite } = useAuthStore();
 
   // Fetch configs and status
   useEffect(() => {
@@ -224,35 +226,39 @@ const TelegrafList: React.FC = () => {
             )}
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={handleRescan}
-              disabled={isScanning}
-              className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors disabled:opacity-50 flex items-center"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              {isScanning ? 'Scanning...' : 'Scan Directory'}
-            </button>
-            <button
-              onClick={handleRestart}
-              disabled={isRestarting}
-              className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              {isRestarting ? 'Restarting...' : 'Restart Telegraf'}
-            </button>
-            <Link 
-              to="/automation/telegraf/new" 
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              New Config
-            </Link>
+            {canWrite() && (
+              <>
+                <button
+                  onClick={handleRescan}
+                  disabled={isScanning}
+                  className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors disabled:opacity-50 flex items-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {isScanning ? 'Scanning...' : 'Scan Directory'}
+                </button>
+                <button
+                  onClick={handleRestart}
+                  disabled={isRestarting}
+                  className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {isRestarting ? 'Restarting...' : 'Restart Telegraf'}
+                </button>
+                <Link 
+                  to="/automation/telegraf/new" 
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  New Config
+                </Link>
+              </>
+            )}
           </div>
         </div>
         
@@ -348,25 +354,36 @@ const TelegrafList: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
-                        <button
-                          onClick={() => handleDuplicate(config.filename)}
-                          className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                          title="Duplicate config"
-                        >
-                          Duplicate
-                        </button>
-                        <Link
-                          to={`/automation/telegraf/edit/${config.filename}`}
-                          className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                        >
-                          Edit
-                        </Link>
-                        <button
-                          onClick={() => handleDelete(config.filename)}
-                          className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
-                        >
-                          Delete
-                        </button>
+                        {canWrite() ? (
+                          <>
+                            <button
+                              onClick={() => handleDuplicate(config.filename)}
+                              className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                              title="Duplicate config"
+                            >
+                              Duplicate
+                            </button>
+                            <Link
+                              to={`/automation/telegraf/edit/${config.filename}`}
+                              className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                            >
+                              Edit
+                            </Link>
+                            <button
+                              onClick={() => handleDelete(config.filename)}
+                              className="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        ) : (
+                          <Link
+                            to={`/automation/telegraf/view/${config.filename}`}
+                            className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                          >
+                            View
+                          </Link>
+                        )}
                       </div>
                     </td>
                   </tr>

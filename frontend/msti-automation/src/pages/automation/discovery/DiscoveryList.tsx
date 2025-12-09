@@ -1,10 +1,12 @@
 import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import useCdpStore from '../../../store/cdpStore';
+import useAuthStore from '../../../store/authStore';
 
 const DiscoveryList: React.FC = () => {
   const navigate = useNavigate();
   const { discoveries, fetchList, loading, deleteDiscovery } = useCdpStore();
+  const { canWrite } = useAuthStore();
 
   useEffect(() => {
     fetchList();
@@ -23,9 +25,11 @@ const DiscoveryList: React.FC = () => {
           <h1 className="text-2xl font-semibold text-gray-800">CDP Discoveries</h1>
           <p className="text-gray-600 mt-1">Kelola job discovery dan lihat hasil topology.</p>
         </div>
-        <button onClick={() => navigate('/automation/cdp/new')} className="px-4 py-2 bg-blue-600 text-white rounded-md">
-          Create New Job
-        </button>
+        {canWrite() && (
+          <button onClick={() => navigate('/automation/cdp/new')} className="px-4 py-2 bg-blue-600 text-white rounded-md">
+            Create New Job
+          </button>
+        )}
       </div>
 
       <div className="bg-white p-4 rounded-lg shadow-sm">
@@ -54,7 +58,9 @@ const DiscoveryList: React.FC = () => {
                     <td className="px-4 py-2">{d.finishedAt ? new Date(d.finishedAt).toLocaleString() : '-'}</td>
                     <td className="px-4 py-2 space-x-3">
                       <Link to={`/automation/cdp/${d.id}`} className="text-blue-600 hover:underline">View</Link>
-                      <button onClick={() => handleDelete(d.id)} className="text-red-600 hover:underline">Delete</button>
+                      {canWrite() && (
+                        <button onClick={() => handleDelete(d.id)} className="text-red-600 hover:underline">Delete</button>
+                      )}
                     </td>
                   </tr>
                 ))}

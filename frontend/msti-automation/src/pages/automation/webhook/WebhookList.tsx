@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import useAuthStore from '../../../store/authStore';
 
 // Interface untuk data webhook
 interface Webhook {
@@ -51,6 +52,7 @@ const WebhookList: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'running' | 'stopped'>('all');
+  const { canWrite } = useAuthStore();
 
   // Simulasi fetching data dari API
   useEffect(() => {
@@ -104,15 +106,17 @@ const WebhookList: React.FC = () => {
       <div className="bg-white p-4 rounded-lg shadow-sm">
         <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
           <h1 className="text-2xl font-semibold text-gray-800">Webhooks</h1>
-          <Link 
-            to="/automation/webhook/new" 
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Webhook
-          </Link>
+          {canWrite() && (
+            <Link 
+              to="/automation/webhook/new" 
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex items-center"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              New Webhook
+            </Link>
+          )}
         </div>
         
         {/* Search and Filter */}
@@ -220,25 +224,35 @@ const WebhookList: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(webhook.createdAt).toLocaleDateString()}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
-                        <button
-                          onClick={() => handleToggleStatus(webhook.id)}
-                          className={`px-3 py-1 rounded text-white ${
-                            webhook.isRunning
-                              ? 'bg-red-500 hover:bg-red-600'
-                              : 'bg-green-500 hover:bg-green-600'
-                          }`}
-                        >
-                          {webhook.isRunning ? 'Stop' : 'Start'}
-                        </button>
-                        <Link
-                          to={`/automation/webhook/edit/${webhook.id}`}
-                          className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                        >
-                          Edit
-                        </Link>
+                        {canWrite() && (
+                          <button
+                            onClick={() => handleToggleStatus(webhook.id)}
+                            className={`px-3 py-1 rounded text-white ${
+                              webhook.isRunning
+                                ? 'bg-red-500 hover:bg-red-600'
+                                : 'bg-green-500 hover:bg-green-600'
+                            }`}
+                          >
+                            {webhook.isRunning ? 'Stop' : 'Start'}
+                          </button>
+                        )}
+                        {canWrite() ? (
+                          <Link
+                            to={`/automation/webhook/edit/${webhook.id}`}
+                            className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                          >
+                            Edit
+                          </Link>
+                        ) : (
+                          <Link
+                            to={`/automation/webhook/view/${webhook.id}`}
+                            className="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                          >
+                            View
+                          </Link>
+                        )}
                         <Link
                           to={`/automation/webhook/logs/${webhook.id}`}
                           className="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
@@ -246,6 +260,7 @@ const WebhookList: React.FC = () => {
                           Logs
                         </Link>
                       </div>
+                    </td>
                     </td>
                   </tr>
                 ))}
