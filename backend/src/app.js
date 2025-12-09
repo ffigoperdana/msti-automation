@@ -22,7 +22,7 @@ const initializeRedis = async () => {
     redisClient = createClient({
       url: process.env.REDIS_URL || 'redis://localhost:6379',
       socket: {
-        connectTimeout: 10000,
+        connectTimeout: 5000, // Reduced timeout to fail fast
         reconnectStrategy: (retries) => {
           if (retries > 10) {
             console.error('❌ Redis max reconnection attempts reached');
@@ -69,8 +69,10 @@ const initializeRedis = async () => {
   }
 };
 
-// Initialize Redis before starting the server
-await initializeRedis();
+// Initialize Redis in background (non-blocking)
+initializeRedis().catch(err => {
+  console.error('⚠️  Redis initialization error:', err.message);
+});
 
 // Configure allowed origins for CORS
 const allowedOrigins = [
@@ -78,6 +80,8 @@ const allowedOrigins = [
   'http://localhost:5172',
   'http://192.168.238.10:5173',
   'http://192.168.238.10:5172',
+  'http://10.20.50.125:5172',
+  'http://10.20.50.125:5173',
   process.env.FRONTEND_URL
 ].filter(Boolean); // Remove undefined values
 
@@ -149,5 +153,8 @@ process.on('SIGINT', async () => {
   }
   process.exit(0);
 });
+
+// Export redisClient for health checks
+export { redisClient };
 
 export default app; 
