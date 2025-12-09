@@ -182,6 +182,31 @@ class MetricService {
     }
   }
 
+  // Helper function to detect unit based on field name and type
+  detectUnit(fieldName, fieldType) {
+    if (fieldType === 'string') {
+      return 'status';
+    }
+    
+    const fieldLower = (fieldName || '').toLowerCase();
+    
+    if (fieldLower.includes('uptime') || fieldLower.includes('sysuptime')) {
+      return 'centiseconds';
+    } else if (fieldLower.includes('percent') || fieldLower.includes('usage') || fieldLower.includes('utilization')) {
+      return 'percent';
+    } else if (fieldLower.includes('octets') || fieldLower.includes('bytes')) {
+      return 'bytes';
+    } else if (fieldLower.includes('packets')) {
+      return 'packets';
+    } else if (fieldLower.includes('errors') || fieldLower.includes('discards')) {
+      return 'count';
+    } else if (fieldLower.includes('status')) {
+      return 'none';
+    }
+    
+    return 'none'; // Default
+  }
+
   async getVisualization(id) {
     try {
       const visualization = await prisma.visualization.findUnique({
@@ -256,7 +281,7 @@ class MetricService {
         }
 
         return {
-          name: measurement || "Query Result",
+          name: `${fieldName} (${interfaceId})`, // Format: "ifInOctets (GigabitEthernet0/10)"
           refId: "A",
           meta: {
             executedQueryString: queryWithTimeRange
@@ -316,10 +341,11 @@ class MetricService {
               values: fieldValues,
               labels: {
                 ...this.extractLabels(rows[0]),
-                id: interfaceId // Explicitly add interface ID to labels
+                interface: interfaceId, // Add interface name to labels
+                id: interfaceId // Keep for backward compatibility
               },
               config: {
-                unit: fieldType === 'string' ? 'status' : (fieldName.includes('percent') || fieldName.includes('usage') ? 'percent' : 'none'),
+                unit: this.detectUnit(fieldName, fieldType),
                 interfaceId: interfaceId // Also add to config for backward compatibility
               }
             }
@@ -355,8 +381,11 @@ class MetricService {
     const series = Object.entries(groupedData).map(([key, rows]) => {
       const [measurement, field, interfaceId] = key.split('::');
       
+      // Auto-detect unit using helper function
+      const unit = this.detectUnit(field, 'number');
+      
       return {
-        name: measurement,
+        name: `${field} (${interfaceId})`, // Format: "ifInOctets (GigabitEthernet0/10)"
         refId: "A",
         meta: {
           executedQueryString: config.query
@@ -383,10 +412,11 @@ class MetricService {
             },
             labels: {
               ...this.extractLabels(rows[0]),
-              id: interfaceId // Add interface ID to labels
+              interface: interfaceId, // Add interface name to labels
+              id: interfaceId // Keep for backward compatibility
             },
             config: {
-              unit: "percent",
+              unit: unit,
               interfaceId: interfaceId // Also add to config
             },
             values: rows.map(row => row._value)
@@ -421,7 +451,8 @@ class MetricService {
     data.forEach(row => {
       const measurement = row._measurement || 'unknown';
       const field = row._field || 'value';
-      const interfaceId = row.id || row.interface || 'unknown'; // Add interface ID to grouping
+      // Use ifDescr for interface name (SNMP interface description)
+      const interfaceId = row.ifDescr || row.ifName || row.id || row.interface || 'unknown';
       const key = `${measurement}::${field}::${interfaceId}`; // Include interface ID in key
       
       if (!grouped[key]) {
