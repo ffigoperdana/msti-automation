@@ -44,7 +44,7 @@ const convertCentisecondsToUptime = (centiseconds: number): string => {
 };
 
 const Stat: React.FC<StatProps> = ({ panelId, queryResult }) => {
-    const [value, setValue] = useState<number | null>(null);
+    const [, setValue] = useState<number | null>(null);
     const [displayValue, setDisplayValue] = useState<string>('');
     const [unit, setUnit] = useState<string>('');
     const [loading, setLoading] = useState(true);

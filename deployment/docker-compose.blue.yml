@@ -1,6 +1,27 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: msti-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    networks:
+      - msti-blue
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "service.name=redis"
+      - "service.type=session-store"
+
   backend-blue:
     image: ${DOCKER_USERNAME}/backend:${IMAGE_TAG}
     container_name: msti-backend-blue
@@ -16,6 +37,8 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=redis://redis:6379
+      - SESSION_SECRET=${SESSION_SECRET}
       - INFLUX_URL=${INFLUX_URL}
       - INFLUX_TOKEN=${INFLUX_TOKEN}
       - PORT=3001
@@ -38,6 +61,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    depends_on:
+      redis:
+        condition: service_healthy
 
   frontend-blue:
     image: ${DOCKER_USERNAME}/frontend:${IMAGE_TAG}
@@ -69,4 +95,8 @@ services:
 networks:
   msti-blue:
     driver: bridge
-    name: msti-blue 
+    name: msti-blue
+
+volumes:
+  redis-data:
+    name: msti-redis-data 

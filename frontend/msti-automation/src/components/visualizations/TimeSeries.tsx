@@ -70,14 +70,6 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
     return bps / 1_000_000; // Convert to Mbps
   };
 
-  // Helper function to format value with unit
-  const formatValue = (value: number, seriesName: string): string => {
-    if (shouldConvertToMbps(seriesName)) {
-      return bpsToMbps(value).toFixed(2) + ' Mbps';
-    }
-    return value.toLocaleString();
-  };
-
   // Process data for ECharts - SIMPLIFIED!
   const processedData: TimeSeriesData[] = useMemo(() => {
     if (!activeData?.series || activeData.series.length === 0) {
