@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import session from 'express-session';
+import { RedisStore } from 'connect-redis';
+import { createClient } from 'redis';
 import sourceRoutes from './routes/sourceRoutes.js';
 import visualizationRoutes from './routes/visualizationRoutes.js';
 import authRoutes from './routes/authRoutes.js';
@@ -10,6 +12,67 @@ import telegrafRoutes from './routes/telegrafRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 
 const app = express();
+
+// Initialize Redis client for session store
+let redisClient;
+let sessionStore;
+
+const initializeRedis = async () => {
+  try {
+    redisClient = createClient({
+      url: process.env.REDIS_URL || 'redis://localhost:6379',
+      socket: {
+        connectTimeout: 5000, // Reduced timeout to fail fast
+        reconnectStrategy: (retries) => {
+          if (retries > 10) {
+            console.error('❌ Redis max reconnection attempts reached');
+            return new Error('Redis max reconnection attempts reached');
+          }
+          const delay = Math.min(retries * 100, 3000);
+          console.log(`🔄 Reconnecting to Redis in ${delay}ms...`);
+          return delay;
+        }
+      }
+    });
+
+    redisClient.on('error', (err) => {
+      console.error('❌ Redis Client Error:', err.message);
+    });
+
+    redisClient.on('connect', () => {
+      console.log('🔗 Redis Client connecting...');
+    });
+
+    redisClient.on('ready', () => {
+      console.log('✅ Redis Client ready');
+    });
+
+    redisClient.on('reconnecting', () => {
+      console.log('🔄 Redis Client reconnecting...');
+    });
+
+    await redisClient.connect();
+    
+    // Initialize Redis session store
+    sessionStore = new RedisStore({ 
+      client: redisClient,
+      prefix: 'sess:',
+      ttl: 86400 // 24 hours in seconds
+    });
+
+    console.log('✅ Redis session store initialized');
+    return sessionStore;
+  } catch (error) {
+    console.error('⚠️  Redis connection failed, falling back to MemoryStore:', error.message);
+    console.warn('⚠️  WARNING: MemoryStore will leak memory in production!');
+    return null; // Will use default MemoryStore
+  }
+};
+
+// Initialize Redis in background (non-blocking)
+initializeRedis().catch(err => {
+  console.error('⚠️  Redis initialization error:', err.message);
+});
 
 // Configure allowed origins for CORS
 const allowedOrigins = [
@@ -38,8 +101,9 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Session middleware
-app.use(session({
+// Session middleware with Redis store
+const sessionConfig = {
+  store: sessionStore, // Will use Redis if available, otherwise MemoryStore
   secret: process.env.SESSION_SECRET || 'msti-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
@@ -49,7 +113,9 @@ app.use(session({
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     sameSite: 'lax' // Allow cross-site requests for same domain
   }
-}));
+};
+
+app.use(session(sessionConfig));
 
 // Middleware
 app.use(express.json());
@@ -68,5 +134,25 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: err.message || 'Something went wrong!' });
 });
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('🛑 SIGTERM received, closing Redis connection...');
+  if (redisClient) {
+    await redisClient.quit();
+  }
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('🛑 SIGINT received, closing Redis connection...');
+  if (redisClient) {
+    await redisClient.quit();
+  }
+  process.exit(0);
+});
+
+// Export redisClient for health checks
+export { redisClient };
 
 export default app; 

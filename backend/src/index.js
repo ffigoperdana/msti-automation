@@ -71,12 +71,29 @@ app.get('/health', async (req, res) => {
     // Check database connection
     await prisma.$queryRaw`SELECT 1`;
     
+    // Check Redis connection (import redisClient from app)
+    let redisStatus = 'not_configured';
+    try {
+      const { redisClient } = await import('./app.js');
+      if (redisClient && redisClient.isReady) {
+        redisStatus = 'connected';
+      } else if (redisClient) {
+        redisStatus = 'disconnected';
+      }
+    } catch (err) {
+      redisStatus = 'error';
+    }
+    
     res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       version: process.env.npm_package_version || '1.0.0',
-      environment: process.env.NODE_ENV || 'development'
+      environment: process.env.NODE_ENV || 'development',
+      services: {
+        database: 'connected',
+        redis: redisStatus
+      }
     });
   } catch (error) {
     console.error('Health check failed:', error);
