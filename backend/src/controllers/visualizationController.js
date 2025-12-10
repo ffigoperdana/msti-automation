@@ -349,7 +349,7 @@ export const executePanelQuery = async(req, res) => {
                     const groupedByInterface = {};
                     rawData.forEach(row => {
                       // Use ifDescr for interface name (e.g., GigabitEthernet0/10)
-                      const interfaceId = row.ifDescr || row.ifName || row.id || 'unknown';
+                      const interfaceId = row.ifDescr || row.ifPort || row.id || 'unknown';
                       const key = `${row._measurement}::${row._field}::${interfaceId}`;
                       
                       if (!groupedByInterface[key]) {
@@ -712,6 +712,22 @@ export const validateQuery = async (req, res) => {
             });
         });
 
+        // Debug: Log sample row to understand data structure
+        if (rawResult.length > 0) {
+            console.log('📊 VALIDATION - Sample row keys:', Object.keys(rawResult[0]));
+            console.log('📊 VALIDATION - Sample row data:', JSON.stringify(rawResult[0], null, 2));
+        }
+
+        // Validate data structure for panel type
+        const validation = validateDataForPanelType(rawResult, panelType);
+
+        // Extract interface IDs for interface-based panels
+        let interfaceIds = [];
+        if (['interface', 'interface-status', 'timeseries', 'time-series'].includes(panelType)) {
+            interfaceIds = [...new Set(rawResult.map(row => extractInterfaceIdForValidation(row)))];
+            console.log('📊 VALIDATION - Extracted interface IDs:', interfaceIds);
+        }
+
         // Create simple debug info
         const debugInfo = {
             timestamp: new Date().toISOString(),
@@ -720,20 +736,33 @@ export const validateQuery = async (req, res) => {
             dataSource: dataSource.name,
             totalRows: rawResult.length,
             sampleRows: rawResult.slice(0, 5),
-            allFields: [...new Set(rawResult.flatMap(row => Object.keys(row)))]
+            allFields: [...new Set(rawResult.flatMap(row => Object.keys(row)))],
+            validation: validation,
+            interfaceIds: interfaceIds.length > 0 ? interfaceIds : undefined
         };
 
-        // Save to debug file
-        const debugFileName = `debug_${panelType.replace('-', '_')}_validation.json`;
-        const debugPath = path.join(process.cwd(), debugFileName);
-        fs.writeFileSync(debugPath, JSON.stringify(debugInfo, null, 2));
+        // Save to debug file only in development
+        if (process.env.NODE_ENV !== 'production') {
+            const debugFileName = `debug_${panelType.replace('-', '_')}_validation.json`;
+            const debugPath = path.join(process.cwd(), debugFileName);
+            fs.writeFileSync(debugPath, JSON.stringify(debugInfo, null, 2));
+        }
 
         res.json({
-            valid: true,
-            message: `Query is valid for ${panelType} panel`,
+            valid: validation.isValid,
+            message: validation.isValid
+                ? `Query is valid for ${panelType} panel`
+                : `Query validation has warnings for ${panelType} panel`,
             rowCount: rawResult.length,
             fields: debugInfo.allFields,
-            debugFile: debugPath,
+            warnings: validation.warnings,
+            suggestions: validation.suggestions,
+            requiredFields: validation.requiredFields,
+            detectedFields: validation.detectedFields,
+            interfaceCount: interfaceIds.length,
+            debugFile: process.env.NODE_ENV !== 'production'
+                ? path.join(process.cwd(), `debug_${panelType.replace('-', '_')}_validation.json`)
+                : undefined,
             panelType: panelType
         });
 
@@ -748,36 +777,56 @@ export const validateQuery = async (req, res) => {
 
 // Helper function to extract interface ID for validation
 function extractInterfaceIdForValidation(row) {
-    // Try common interface field patterns
-    if (row.interface) return row.interface;
-    if (row.ifName) return row.ifName;
-    if (row.id) return row.id;
-    if (row.name) return row.name;
-    
-    // Try regex patterns for interface names
-    const interfaceRegex = /(?:eth|fa|gi|te|hu)[\d\/\.\-]+/i;
+    // Priority 1: SNMP interface fields (most specific)
+    if (row.ifDescr && row.ifDescr !== '') return row.ifDescr;
+    if (row.ifPort && row.ifPort !== '') return row.ifPort;
+    if (row.ifAlias && row.ifAlias !== '') return row.ifAlias;
+
+    // Priority 2: Generic interface fields
+    if (row.interface && row.interface !== '') return row.interface;
+    if (row.name && row.name !== '') return row.name;
+
+    // Priority 3: Index-based identification
+    if (row.ifIndex) return `interface-${row.ifIndex}`;
+    if (row.index) return `interface-${row.index}`;
+    if (row.id && row.id !== '') return row.id;
+
+    // Priority 4: Scan all fields for interface name patterns
+    const interfaceRegex = /^(?:eth|fa|gi|te|hu|ge|xe|port|lan|wan|vlan|tunnel|loopback|management)[\d\/\.\-:]+$/i;
     for (const [key, value] of Object.entries(row)) {
-        if (typeof value === 'string' && interfaceRegex.test(value)) {
+        if (typeof value === 'string' && value !== '' && interfaceRegex.test(value)) {
             return value;
         }
     }
-    
-    // Try common SNMP interface fields
-    if (row.ifDescr) return row.ifDescr;
-    if (row.ifAlias) return row.ifAlias;
-    
-    // Use table name if available
-    if (row.table) return row.table;
-    
-    // Generate from host + source if available
+
+    // Priority 5: Use table/measurement name if available
+    if (row.table && row.table !== '') return row.table;
+
+    // Priority 6: Combine host + ifIndex if available
+    if (row.ifIndex && (row.host || row.agent_host || row.source)) {
+        const hostId = row.host || row.agent_host || row.source;
+        return `${hostId}-if${row.ifIndex}`;
+    }
+
+    // Priority 7: Use host + source combination
     if (row.host && row.source) {
         return `${row.host}-${row.source}`;
     }
-    
-    // Use measurement + field as fallback
+
+    // Priority 8: Use any single host identifier
+    if (row.host && row.host !== '') return row.host;
+    if (row.agent_host && row.agent_host !== '') return row.agent_host;
+    if (row.source && row.source !== '') return row.source;
+
+    // Fallback: Use measurement + field (but log warning)
     const measurement = row._measurement || 'unknown';
     const field = row._field || 'value';
-    return `${measurement}-${field}`;
+    const fallback = `${measurement}-${field}`;
+
+    console.warn('⚠️ Could not extract interface ID from row, using fallback:', fallback);
+    console.warn('⚠️ Available fields:', Object.keys(row));
+
+    return fallback;
 }
 
 // Helper function to validate data structure for different panel types
@@ -811,10 +860,14 @@ function validateDataForPanelType(rawData, panelType) {
             }
             
             // Check for interface identification
-            const interfaceFields = ['interface', 'ifName', 'id', 'name', 'host', 'source'];
+            const interfaceFields = ['ifDescr', 'ifPort', 'ifAlias', 'interface', 'ifIndex', 'index', 'id', 'name', 'host', 'agent_host', 'source'];
             const hasInterfaceField = interfaceFields.some(field => allFields.includes(field));
             if (!hasInterfaceField) {
-                validation.suggestions.push('Consider adding interface identification fields for better series grouping');
+                validation.warnings.push('No interface identification field found for proper series grouping');
+                validation.suggestions.push('Add interface fields like ifDescr, ifPort, or ifIndex for better series separation');
+            } else {
+                const foundFields = interfaceFields.filter(field => allFields.includes(field));
+                validation.suggestions.push(`Interface fields detected: ${foundFields.join(', ')}`);
             }
             break;
 
@@ -839,12 +892,14 @@ function validateDataForPanelType(rawData, panelType) {
         case 'interface':
         case 'interface-status':
             validation.requiredFields = ['_value', 'interface'];
-            const hasInterface = allFields.some(field => 
-                field.includes('interface') || field.includes('ifName') || field === 'id'
-            );
+            const interfaceStatusFields = ['ifDescr', 'ifPort', 'ifAlias', 'interface', 'ifIndex', 'index', 'id', 'name'];
+            const hasInterface = interfaceStatusFields.some(field => allFields.includes(field));
             if (!hasInterface) {
                 validation.warnings.push('Missing interface identification field');
-                validation.suggestions.push('Add interface field or use ifName/id for interface identification');
+                validation.suggestions.push('Add interface fields like ifDescr, ifPort, ifIndex, or interface for proper identification');
+            } else {
+                const foundInterfaceFields = interfaceStatusFields.filter(field => allFields.includes(field));
+                validation.suggestions.push(`Interface identification fields found: ${foundInterfaceFields.join(', ')}`);
             }
             break;
 
