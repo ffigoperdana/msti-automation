@@ -6,12 +6,12 @@
     "deploy": "bash deploy-from-laptop.sh",
     "deploy:check": "bash check-deploy.sh",
     "deploy:force": "bash deploy-from-laptop.sh --force",
-    "deploy:status": "ssh cisco@192.168.238.10 'cd /opt/msti-automation && deployment/deploy.sh status'",
-    "deploy:rollback": "ssh cisco@192.168.238.10 'cd /opt/msti-automation && deployment/deploy.sh rollback'",
-    "fix:containers": "scp fix-stuck-containers.sh cisco@192.168.238.10:/tmp/ && ssh cisco@192.168.238.10 'chmod +x /tmp/fix-stuck-containers.sh && /tmp/fix-stuck-containers.sh'",
+    "deploy:status": "ssh cisco@10.20.50.125 'cd /opt/msti-automation && deployment/deploy.sh status'",
+    "deploy:rollback": "ssh cisco@10.20.50.125 'cd /opt/msti-automation && deployment/deploy.sh rollback'",
+    "fix:containers": "scp fix-stuck-containers.sh cisco@10.20.50.125:/tmp/ && ssh cisco@10.20.50.125 'chmod +x /tmp/fix-stuck-containers.sh && /tmp/fix-stuck-containers.sh'",
     "fix:env": "bash fix-env-file.sh",
     "fix:permissions": "bash fix-backend-permissions.sh",
-    "ssh:test": "ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o PasswordAuthentication=no cisco@192.168.238.10 \"echo 'SSH key authentication working!'\"",
+    "ssh:test": "ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o PasswordAuthentication=no cisco@10.20.50.125 \"echo 'SSH key authentication working!'\"",
     "ssh:setup": "echo 'See SSH_SETUP.md for detailed instructions' && start SSH_SETUP.md"
   },
   "keywords": [

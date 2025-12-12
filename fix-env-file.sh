@@ -6,7 +6,7 @@
 echo "🔧 Fixing .env file format on VPS..."
 
 # SSH to VPS and fix .env file
-ssh cisco@192.168.238.10 << 'EOF'
+ssh cisco@10.20.50.125 << 'EOF'
     cd /opt/msti-automation
     
     echo "📁 Current directory: $(pwd)"

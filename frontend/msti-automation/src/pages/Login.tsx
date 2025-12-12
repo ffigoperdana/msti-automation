@@ -9,6 +9,7 @@ const Login: React.FC = () => {
     localStorage.setItem('ip_host', serverAddress);
     localStorage.setItem('port', serverPort);
     setShowServerForm(false);
+    console.log('Server settings saved:', serverAddress, serverPort);
   };
 
   return (
