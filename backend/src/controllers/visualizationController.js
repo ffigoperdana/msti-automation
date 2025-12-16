@@ -350,7 +350,7 @@ export const executePanelQuery = async(req, res) => {
                     rawData.forEach(row => {
                       // Use ifDescr for interface name (e.g., GigabitEthernet0/10)
                       const interfaceId = row.ifDescr || row.ifPort || row.id || 'unknown';
-                      const key = `${row._measurement}::${row._field}::${interfaceId}`;
+                      const key = `${row.sysName || 'unknown_host'}::${row._measurement}::${row._field}::${interfaceId}`;
                       
                       if (!groupedByInterface[key]) {
                         groupedByInterface[key] = [];
@@ -362,18 +362,19 @@ export const executePanelQuery = async(req, res) => {
                     
                     // Create series for each interface with CORRECT format
                     const series = Object.entries(groupedByInterface).map(([key, rows]) => {
-                      const [measurement, field, interfaceId] = key.split('::');
+                      const [sysName, measurement, field, interfaceId] = key.split('::');
                       
                       // Sort by time
                       rows.sort((a, b) => new Date(a._time) - new Date(b._time));
                       
                       return {
-                        name: `${rows[0].sysName || 'Unknown Host'} - (${interfaceId})`,
+                        name: `${sysName} - ${field} (${interfaceId})`,
                         data: rows.map(row => [
                           new Date(row._time).getTime(),
                           Number(row._value) || 0
                         ]),
                         labels: {
+                          sysName: sysName,
                           measurement: measurement,
                           field: field,
                           id: interfaceId,
