@@ -65,6 +65,7 @@ const initializeRedis = async () => {
   } catch (error) {
     console.error('⚠️  Redis connection failed, falling back to MemoryStore:', error.message);
     console.warn('⚠️  WARNING: MemoryStore will leak memory in production!');
+    console.warn('⚠️  Please ensure Redis server is running and accessible.');
     return null; // Will use default MemoryStore
   }
 };
