@@ -113,6 +113,10 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
       // Step 2: If validation successful, try to execute query for preview data
       let previewData = validationResult.data;
       
+      console.log('🔍 VALIDATION RESULT DATA:', validationResult.data);
+      console.log('🔍 VALIDATION RESULT DATA.series:', validationResult.data?.series);
+      console.log('🔍 VALIDATION RESULT DATA.series.length:', validationResult.data?.series?.length);
+      
       try {
         // For gauge and other panel types that need actual data, execute the query
         if (showPreview && (panelType === 'gauge' || panelType === 'timeseries')) {
@@ -125,6 +129,8 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
           console.log('✅ Query execution SUCCESS! Result:', executeResult);
           console.log('📊 Result type:', typeof executeResult);
           console.log('📊 Result length (if array):', Array.isArray(executeResult) ? executeResult.length : 'Not array');
+          console.log('📊 executeResult.series:', executeResult?.series);
+          console.log('📊 executeResult.series.length:', executeResult?.series?.length);
           
           // Debug untuk TimeSeries - tampilkan struktur data lebih detail
           if (panelType === 'timeseries' && executeResult) {
@@ -165,11 +171,13 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
             }
           }
           
-          if (executeResult && executeResult.length > 0) {
-            previewData = executeResult;
+          if (executeResult && (executeResult.series?.length > 0 || Array.isArray(executeResult) && executeResult.length > 0)) {
             console.log('🎯 Using executeResult as previewData');
+            console.log('🎯 executeResult structure:', JSON.stringify(executeResult, null, 2));
+            previewData = executeResult;
           } else {
             console.log('⚠️ ExecuteResult is empty, keeping validation data');
+            console.log('⚠️ Validation data structure:', JSON.stringify(validationResult.data, null, 2));
           }
         } else {
           console.log('⏭️ Skipping query execution - showPreview:', showPreview, 'panelType:', panelType);
@@ -301,28 +309,31 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
           let totalDataPoints = 0;
           const interfaceList: string[] = [];
           
-          if (data?.series) {
+          if (data?.series && Array.isArray(data.series)) {
+            // Backend returns ONE serie per interface, so count series!
+            interfaceCount = data.series.length;
+            
             data.series.forEach((serie: any) => {
-              if (serie.fields) {
-                // Filter hanya field yang memiliki tipe number dan labels.id (interface fields)
-                const interfaceFields = serie.fields.filter((field: any) => 
-                  field.type === 'number' && field.labels && field.labels.id
+              // Extract interface name from serie name: "ifInOctets (GigabitEthernet0/10)"
+              const match = serie.name?.match(/\(([^)]+)\)/);
+              const interfaceName = match ? match[1] : 'unknown';
+              
+              if (!interfaceList.includes(interfaceName)) {
+                interfaceList.push(interfaceName);
+              }
+              
+              // Count data points from the value field
+              if (serie.fields && Array.isArray(serie.fields)) {
+                const valueField = serie.fields.find((f: any) => 
+                  f.type === 'number' && f.values
                 );
-                
-                console.log(`🔍 Found ${interfaceFields.length} interface fields in serie`);
-                
-                interfaceFields.forEach((field: any) => {
-                  const interfaceId = field.labels.id;
-                  if (!interfaceList.includes(interfaceId)) {
-                    interfaceList.push(interfaceId);
-                    interfaceCount++;
-                  }
-                  if (field.values) {
-                    totalDataPoints += field.values.length;
-                  }
-                });
+                if (valueField && valueField.values) {
+                  totalDataPoints += valueField.values.length;
+                }
               }
             });
+            
+            console.log(`✅ Detected ${interfaceCount} interfaces:`, interfaceList);
           }
           
           return (
@@ -343,7 +354,7 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
               {interfaceCount === 0 && (
                 <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
                   <p className="text-sm text-yellow-700">
-                    ⚠️ No interface IDs detected in the data. Make sure your query includes interface ID labels.
+                    ⚠️ No series detected. Make sure your query returns time series data with interface information.
                   </p>
                 </div>
               )}
@@ -351,7 +362,7 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
               {interfaceCount === 1 && (
                 <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
                   <p className="text-sm text-blue-700">
-                    💡 Only one interface detected. For multiple series, ensure your query doesn't filter to a single interface.
+                    💡 Only one interface detected. For multiple interfaces, ensure your query includes multiple interface IDs (check ifDescr or ifName tags).
                   </p>
                 </div>
               )}

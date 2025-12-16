@@ -451,8 +451,8 @@ class MetricService {
     data.forEach(row => {
       const measurement = row._measurement || 'unknown';
       const field = row._field || 'value';
-      // Use ifDescr for interface name (SNMP interface description)
-      const interfaceId = row.ifDescr || row.ifName || row.id || row.interface || 'unknown';
+      // Use ifPort first (most common in Telegraf SNMP), then fallbacks
+      const interfaceId = row.ifPort || row.ifDescr || row.ifName || row.id || row.interface || 'unknown';
       const key = `${measurement}::${field}::${interfaceId}`; // Include interface ID in key
       
       if (!grouped[key]) {

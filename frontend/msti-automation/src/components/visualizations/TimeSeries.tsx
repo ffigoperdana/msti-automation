@@ -18,12 +18,15 @@ interface TimeSeriesProps {
   queryResult?: any;
 }
 
-const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
+const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) => {
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<echarts.ECharts | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [backendData, setBackendData] = useState<any>(null);
+  const [selectedInterfaces, setSelectedInterfaces] = useState<string[]>([]);
+  const [showInterfaceDropdown, setShowInterfaceDropdown] = useState(false);
+  const [interfaceSearchQuery, setInterfaceSearchQuery] = useState('');
 
   // Gunakan data dari VisualizationPanel (queryResult) agar tidak duplikat fetch
   useEffect(() => {
@@ -59,6 +62,54 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
   // Use backend data if available, otherwise fall back to prop data
   const activeData = backendData || data;
 
+  // Extract unique interface names from series
+  const availableInterfaces = useMemo((): string[] => {
+    if (!activeData?.series || activeData.series.length === 0) return [];
+    
+    const interfaces: string[] = activeData.series.map((serie: any): string => {
+      // Extract interface name from series name format: "ifOutOctets (GigabitEthernet0/10)"
+      const match = serie.name.match(/\(([^)]+)\)/);
+      return match ? match[1] : serie.name;
+    });
+    
+    return Array.from(new Set<string>(interfaces)).sort();
+  }, [activeData]);
+
+  // Load selected interfaces from localStorage on mount
+  useEffect(() => {
+    if (panelId && availableInterfaces.length > 0) {
+      const storageKey = `timeseries-interfaces-${panelId}`;
+      const saved = localStorage.getItem(storageKey);
+      
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          // Only use saved interfaces that still exist in current data
+          const validInterfaces = parsed.filter((iface: string) => 
+            availableInterfaces.includes(iface)
+          );
+          if (validInterfaces.length > 0) {
+            setSelectedInterfaces(validInterfaces);
+            return;
+          }
+        } catch (e) {
+          console.warn('Failed to parse saved interfaces:', e);
+        }
+      }
+      
+      // Default: select all interfaces
+      setSelectedInterfaces(availableInterfaces);
+    }
+  }, [panelId, availableInterfaces]);
+
+  // Save selected interfaces to localStorage when changed
+  useEffect(() => {
+    if (panelId && selectedInterfaces.length > 0) {
+      const storageKey = `timeseries-interfaces-${panelId}`;
+      localStorage.setItem(storageKey, JSON.stringify(selectedInterfaces));
+    }
+  }, [panelId, selectedInterfaces]);
+
   // Helper function to detect if field is bandwidth (Octets) and should be converted to Mbps
   const shouldConvertToMbps = (seriesName: string): boolean => {
     const name = seriesName.toLowerCase();
@@ -83,8 +134,15 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
       '#59a14f', '#edc949', '#af7aa1', '#ff9da7'
     ];
 
+    // Filter series based on selected interfaces
+    const filteredSeries = activeData.series.filter((serie: any) => {
+      const match = serie.name.match(/\(([^)]+)\)/);
+      const interfaceName = match ? match[1] : serie.name;
+      return selectedInterfaces.includes(interfaceName);
+    });
+
     // Backend sends CORRECT format - just map colors!
-    return activeData.series.map((serie: any, index: number) => {
+    return filteredSeries.map((serie: any, index: number) => {
       const color = colors[index % colors.length];
       
       // Convert data to Mbps if it's bandwidth data
@@ -113,7 +171,7 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
         }
       };
     });
-  }, [activeData]);
+  }, [activeData, selectedInterfaces]);
 
   // Initialize and update chart
   useEffect(() => {
@@ -280,10 +338,122 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
       />
       
       {/* Series table - scrollable like Grafana */}
-      {processedData.length > 0 && (
+      {availableInterfaces.length > 0 && (
         <div className="mt-4">
-          <h4 className="font-medium mb-2">Series</h4>
-          <div className="bg-white rounded-lg border overflow-hidden">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-medium">Series</h4>
+            
+            {/* Interface Filter Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowInterfaceDropdown(!showInterfaceDropdown)}
+                className="flex items-center space-x-2 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                <span>
+                  {selectedInterfaces.length === availableInterfaces.length
+                    ? 'All Interfaces'
+                    : `${selectedInterfaces.length} of ${availableInterfaces.length} selected`}
+                </span>
+                <svg className={`w-4 h-4 text-gray-400 transition-transform ${showInterfaceDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {showInterfaceDropdown && (
+                <>
+                  {/* Backdrop */}
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setShowInterfaceDropdown(false)}
+                  />
+                  
+                  {/* Dropdown Panel */}
+                  <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                    {/* Search Box */}
+                    <div className="p-3 border-b border-gray-200">
+                      <input
+                        type="text"
+                        placeholder="Search interfaces..."
+                        value={interfaceSearchQuery}
+                        onChange={(e) => setInterfaceSearchQuery(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+
+                    {/* Select All / Deselect All */}
+                    <div className="p-2 border-b border-gray-200 bg-gray-50">
+                      <button
+                        onClick={() => {
+                          if (selectedInterfaces.length === availableInterfaces.length) {
+                            // Deselect all
+                            setSelectedInterfaces([]);
+                          } else {
+                            // Select all
+                            setSelectedInterfaces(availableInterfaces);
+                          }
+                        }}
+                        className="w-full text-left px-2 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded"
+                      >
+                        {selectedInterfaces.length === availableInterfaces.length ? '✓ Deselect All' : 'Select All'}
+                      </button>
+                    </div>
+
+                    {/* Interface List */}
+                    <div className="max-h-64 overflow-y-auto">
+                      {availableInterfaces
+                        .filter((iface: string) => 
+                          iface.toLowerCase().includes(interfaceSearchQuery.toLowerCase())
+                        )
+                        .map((interfaceName: string) => (
+                          <label
+                            key={interfaceName}
+                            className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedInterfaces.includes(interfaceName)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedInterfaces([...selectedInterfaces, interfaceName]);
+                                } else {
+                                  setSelectedInterfaces(selectedInterfaces.filter(i => i !== interfaceName));
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <span className="ml-2 text-sm text-gray-700 truncate" title={interfaceName}>
+                              {interfaceName}
+                            </span>
+                          </label>
+                        ))}
+                      
+                      {/* No results message */}
+                      {availableInterfaces.filter((iface: string) => 
+                        iface.toLowerCase().includes(interfaceSearchQuery.toLowerCase())
+                      ).length === 0 && (
+                        <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                          No interfaces found
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="p-2 border-t border-gray-200 bg-gray-50 text-xs text-gray-500 text-center">
+                      {selectedInterfaces.length} interface{selectedInterfaces.length !== 1 ? 's' : ''} selected
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+          
+          {processedData.length > 0 && (
+            <div className="bg-white rounded-lg border overflow-hidden">
             {/* Scroll container with sticky header */}
             <div className="max-h-64 overflow-y-auto">
               <table className="w-full text-sm">
@@ -335,6 +505,20 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult }) => {
               </table>
             </div>
           </div>
+          )}
+          
+          {/* No interfaces selected message */}
+          {processedData.length === 0 && selectedInterfaces.length === 0 && (
+            <div className="bg-white rounded-lg border p-8 text-center">
+              <svg className="w-12 h-12 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="text-gray-600 font-medium mb-1">No interfaces selected</p>
+              <p className="text-sm text-gray-500">
+                Click the filter button above to select interfaces to display
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
