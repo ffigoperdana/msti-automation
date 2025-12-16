@@ -368,7 +368,7 @@ export const executePanelQuery = async(req, res) => {
                       rows.sort((a, b) => new Date(a._time) - new Date(b._time));
                       
                       return {
-                        name: `${field} (${interfaceId})`,
+                        name: `${rows[0].sysName || 'Unknown Host'} - (${interfaceId})`,
                         data: rows.map(row => [
                           new Date(row._time).getTime(),
                           Number(row._value) || 0

@@ -64,7 +64,7 @@ const initializeRedis = async () => {
     return sessionStore;
   } catch (error) {
     console.error('⚠️  Redis connection failed, falling back to MemoryStore:', error.message);
-    console.warn('⚠️  WARNING: MemoryStore will leak memory in production! Use Redis or another store for production environments.');
+    console.warn('⚠️  WARNING: MemoryStore will leak memory in production!');
     return null; // Will use default MemoryStore
   }
 };
