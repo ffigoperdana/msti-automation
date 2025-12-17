@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useAuthStore from '../../store/authStore';
+import metricService from '../../services/metricService';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -28,8 +29,23 @@ interface MenuItem {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
-  const [openAnsibleSubmenu, setOpenAnsibleSubmenu] = useState(false);
+  const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({});
+  const [dashboards, setDashboards] = useState<Array<{ id: string; name: string }>>([]);
   const { isAdmin } = useAuthStore();
+
+  // Fetch dashboards for dropdown
+  useEffect(() => {
+    const fetchDashboards = async () => {
+      try {
+        const response = await metricService.getDashboards();
+        setDashboards(response || []);
+      } catch (error) {
+        console.error('Error fetching dashboards:', error);
+        setDashboards([]);
+      }
+    };
+    fetchDashboards();
+  }, []);
 
   // Tutup sidebar otomatis saat resize ke desktop
   useEffect(() => {
@@ -40,13 +56,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, [onClose]);
 
+  // Build menu items with dynamic dashboards
   const menuItems: MenuItem[] = [
     { 
       title: 'Dashboard', 
       icon: '📊',
       children: [
         { title: 'Dashboard Explorer', path: '/dashboard' },
-        { title: 'New Dashboard', path: '/dashboard/new' }
+        { title: 'New Dashboard', path: '/dashboard/new' },
+        ...dashboards.map(dashboard => ({
+          title: dashboard.name,
+          path: `/dashboard/view/${dashboard.id}`
+        }))
       ]
     },
     { 
@@ -101,10 +122,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     }));
   };
 
-  const toggleAnsibleSubmenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setOpenAnsibleSubmenu(!openAnsibleSubmenu);
+  const toggleSubmenu = (title: string) => {
+    setOpenSubmenus(prev => ({
+      ...prev,
+      [title]: !prev[title]
+    }));
   };
 
   return (
@@ -164,12 +186,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                         child.isSubmenu ? (
                           <div key={child.title}>
                             <button
-                              onClick={toggleAnsibleSubmenu}
+                              onClick={() => toggleSubmenu(child.title)}
                               className="w-full flex items-center justify-between px-4 py-2 text-sm font-medium rounded-md transition-colors hover:bg-gray-700"
                             >
                               <span>{child.title}</span>
                               <svg
-                                className={`w-4 h-4 transition-transform ${openAnsibleSubmenu ? 'rotate-180' : ''}`}
+                                className={`w-4 h-4 transition-transform ${openSubmenus[child.title] ? 'rotate-180' : ''}`}
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -177,7 +199,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                               </svg>
                             </button>
-                            {openAnsibleSubmenu && child.children && (
+                            {openSubmenus[child.title] && child.children && (
                               <div className="mt-1 ml-4 space-y-1">
                                 {child.children.map((subChild) => (
                                   <Link

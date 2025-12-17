@@ -149,12 +149,20 @@ const DashboardExplorer: React.FC = () => {
                     View
                   </Link>
                   {canWrite() && (
-                    <button
-                      onClick={() => handleDeleteDashboard(dashboard.id)}
-                      className="px-3 py-1.5 text-sm bg-transparent border border-red-300 text-red-700 rounded hover:bg-red-50 transition-colors"
-                    >
-                      Delete
-                    </button>
+                    <>
+                      <Link
+                        to={`/dashboard/edit/${dashboard.id}`}
+                        className="px-3 py-1.5 text-sm bg-transparent border border-blue-300 text-blue-700 rounded hover:bg-blue-50 transition-colors"
+                      >
+                        Edit
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteDashboard(dashboard.id)}
+                        className="px-3 py-1.5 text-sm bg-transparent border border-red-300 text-red-700 rounded hover:bg-red-50 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

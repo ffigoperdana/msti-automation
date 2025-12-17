@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import Layout from './components/layout/Layout'
 import Dashboard from './pages/dashboard/DashboardExplorer'
 import NewDashboard from './pages/dashboard/NewDashboard'
+import DashboardSettings from './pages/dashboard/DashboardSettings'
 import SingleDashboard from './pages/Dashboard'
 import PanelForm from './pages/dashboard/PanelForm'
 import AlertRules from './pages/alerting/AlertRules'
@@ -70,6 +71,7 @@ function App() {
                     <Route path="/dashboard" element={<Dashboard />} />
                     <Route path="/dashboard/new" element={<NewDashboard />} />
                     <Route path="/dashboard/view/:id" element={<SingleDashboard />} />
+                    <Route path="/dashboard/edit/:id" element={<DashboardSettings />} />
                     <Route path="/dashboard/:dashboardId" element={<Dashboard />} />
                     <Route path="/dashboard/:dashboardId/panel/new" element={<PanelForm />} />
                     <Route path="/dashboard/:dashboardId/panel/edit/:panelId" element={<PanelForm />} />

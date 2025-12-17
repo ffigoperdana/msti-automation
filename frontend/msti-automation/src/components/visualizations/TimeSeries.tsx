@@ -110,16 +110,47 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
     }
   }, [panelId, selectedInterfaces]);
 
+  // Helper function to clean series name by removing field name (e.g., "ifInOctets")
+  const cleanSeriesName = (seriesName: string): string => {
+    // Remove field name pattern: "fieldName - " or "fieldName (interface)" -> "(interface)"
+    // Example: "RTR-MSI-SUPARK-01 - ifInOctets (GigabitEthernet0/0/0)" -> "RTR-MSI-SUPARK-01 (GigabitEthernet0/0/0)"
+    // Example: "ifInOctets (GigabitEthernet0/0/0)" -> "GigabitEthernet0/0/0"
+    let cleaned = seriesName;
+    
+    // Remove patterns like "ifInOctets", "ifOutOctets", etc.
+    cleaned = cleaned.replace(/\s*-?\s*if(In|Out)?\w*\s*/gi, ' ');
+    
+    // Clean up extra spaces and dashes
+    cleaned = cleaned.replace(/\s+-\s+/g, ' - ');
+    cleaned = cleaned.replace(/\s+\(/g, ' (');
+    cleaned = cleaned.replace(/^\s+|\s+$/g, '');
+    
+    // If only interface name in parentheses remains, remove parentheses
+    const onlyParentheses = cleaned.match(/^\(([^)]+)\)$/);
+    if (onlyParentheses) {
+      cleaned = onlyParentheses[1];
+    }
+    
+    return cleaned;
+  };
+
   // Helper function to detect if field is bandwidth (Octets) and should be converted to Mbps
   const shouldConvertToMbps = (seriesName: string): boolean => {
     const name = seriesName.toLowerCase();
     return name.includes('octets') || name.includes('ifin') || name.includes('ifout');
   };
 
-  // Helper function to convert bps to Mbps
-  const bpsToMbps = (bps: number): number => {
-    return bps / 1_000_000; // Convert to Mbps
+  // Helper function to convert octets (bytes) to Mbps
+  const bpsToMbps = (octets: number): number => {
+    // Octets to Mbps: (octets * 8 bits/byte) / 1,000,000 = octets / 125,000
+    return octets / 125000 / 1000;
   };
+
+  // Check if we have bandwidth data (store for Y-axis formatter)
+  const hasBandwidthData = useMemo(() => {
+    if (!activeData?.series || activeData.series.length === 0) return false;
+    return activeData.series.some((serie: any) => shouldConvertToMbps(serie.name));
+  }, [activeData]);
 
   // Process data for ECharts - SIMPLIFIED!
   const processedData: TimeSeriesData[] = useMemo(() => {
@@ -152,7 +183,7 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
         : serie.data;
       
       return {
-        name: serie.name,
+        name: cleanSeriesName(serie.name),
         data: convertedData, // Converted to Mbps if needed
         type: 'line' as const,
         smooth: true,
@@ -259,22 +290,17 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
         nameLocation: 'middle',
         nameGap: 40,
         axisLabel: {
-          formatter: function(value: number) {
-            // Check if any series is bandwidth data
-            const hasBandwidthData = processedData.some(s => shouldConvertToMbps(s.name));
-            
+          formatter: (value: number) => {
             if (hasBandwidthData) {
-              // Already in Mbps, just format nicely
-              if (value >= 1000) return (value / 1000).toFixed(1) + 'K Mbps';
-              if (value >= 1) return value.toFixed(1) + ' Mbps';
+              // Always show 2 decimal places for Mbps, no K abbreviation
               return value.toFixed(2) + ' Mbps';
             }
             
             // Regular formatting for non-bandwidth data
-            if (value >= 1e9) return (value / 1e9).toFixed(1) + 'B';
-            if (value >= 1e6) return (value / 1e6).toFixed(1) + 'M';
-            if (value >= 1e3) return (value / 1e3).toFixed(1) + 'K';
-            return value.toString();
+            if (value >= 1e9) return (value / 1e9).toFixed(2) + 'B';
+            if (value >= 1e6) return (value / 1e6).toFixed(2) + 'M';
+            if (value >= 1e3) return (value / 1e3).toFixed(2) + 'K';
+            return value.toFixed(2);
           }
         }
       },
