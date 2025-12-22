@@ -11,6 +11,7 @@ const PANEL_TYPES = [
   { id: 'timeseries', name: 'Time Series', icon: '📈' },
   { id: 'netflow-timeseries', name: 'NetFlow Time Series', icon: '🌊' },
   { id: 'interface-status', name: 'Interface Status', icon: '🔌' },
+  { id: 'status-code', name: 'Status Code', icon: '✓' },
   { id: 'gauge', name: 'Gauge', icon: '⏲️' },
   { id: 'table', name: 'Table', icon: '🔢' },
   { id: 'chord-diagram', name: 'Chord Diagram', icon: '🌐' },

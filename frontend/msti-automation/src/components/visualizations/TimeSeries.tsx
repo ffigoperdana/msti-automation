@@ -110,26 +110,29 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
     }
   }, [panelId, selectedInterfaces]);
 
-  // Helper function to clean series name by removing field name (e.g., "ifInOctets")
+  // Helper function to transform series name: ifIn* -> IN, ifOut* -> OUT
   const cleanSeriesName = (seriesName: string): string => {
-    // Remove field name pattern: "fieldName - " or "fieldName (interface)" -> "(interface)"
-    // Example: "RTR-MSI-SUPARK-01 - ifInOctets (GigabitEthernet0/0/0)" -> "RTR-MSI-SUPARK-01 (GigabitEthernet0/0/0)"
-    // Example: "ifInOctets (GigabitEthernet0/0/0)" -> "GigabitEthernet0/0/0"
+    // Transform pattern: "RTR-MSI-SUPARK-01 - ifInOctets (GigabitEthernet0/0/0)" -> "RTR-MSI-SUPARK-01 - IN - (GigabitEthernet0/0/0)"
+    // Transform pattern: "ifOutOctets (Vlan1)" -> "OUT - (Vlan1)"
     let cleaned = seriesName;
     
-    // Remove patterns like "ifInOctets", "ifOutOctets", etc.
-    cleaned = cleaned.replace(/\s*-?\s*if(In|Out)?\w*\s*/gi, ' ');
+    // Replace ifIn* patterns with "IN"
+    cleaned = cleaned.replace(/ifIn\w*/gi, 'IN');
     
-    // Clean up extra spaces and dashes
-    cleaned = cleaned.replace(/\s+-\s+/g, ' - ');
-    cleaned = cleaned.replace(/\s+\(/g, ' (');
-    cleaned = cleaned.replace(/^\s+|\s+$/g, '');
+    // Replace ifOut* patterns with "OUT"
+    cleaned = cleaned.replace(/ifOut\w*/gi, 'OUT');
     
-    // If only interface name in parentheses remains, remove parentheses
-    const onlyParentheses = cleaned.match(/^\(([^)]+)\)$/);
-    if (onlyParentheses) {
-      cleaned = onlyParentheses[1];
-    }
+    // Clean up spacing around dashes: ensure " - " format
+    cleaned = cleaned.replace(/\s*-\s*/g, ' - ');
+    
+    // Ensure there's a dash before parentheses if not already present
+    cleaned = cleaned.replace(/\s+\(/g, ' - (');
+    
+    // Clean up double dashes that might occur
+    cleaned = cleaned.replace(/\s+-\s+-\s+/g, ' - ');
+    
+    // Trim leading/trailing spaces
+    cleaned = cleaned.trim();
     
     return cleaned;
   };

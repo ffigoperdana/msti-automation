@@ -17,7 +17,7 @@ interface DataSource {
 interface PanelData {
   title: string;
   description: string;
-  type: '' | 'text' | 'stat' |'timeseries' | 'interface-status' | 'gauge' | 'table' | 'chord-diagram' | 'netflow-timeseries';
+  type: '' | 'text' | 'stat' |'timeseries' | 'interface-status' | 'gauge' | 'table' | 'chord-diagram' | 'netflow-timeseries' | 'status-code';
   dataSourceId?: string;
   queryText?: string;
   srcQuery?: string;  // NetFlow source query
@@ -36,6 +36,9 @@ interface PanelData {
     mode?: 'simplified' | 'advanced';
     selectedFields?: string[];
     timeRange?: string; // -5m, -15m, -1h, etc.
+    // Status-code specific options
+    serverName?: string;
+    queryType?: 'http' | 'dns';
   };
   queries: Array<{
     refId: string;
@@ -546,6 +549,7 @@ const PanelForm: React.FC = () => {
                 <option value="timeseries">Time Series</option>
                 <option value="netflow-timeseries">NetFlow Time Series</option>
                 <option value="interface-status">Interface Status</option>
+                <option value="status-code">Status Code</option>
                 <option value="gauge">Gauge</option>
                 <option value="table">Table</option>
                 <option value="chord-diagram">Chord Diagram</option>

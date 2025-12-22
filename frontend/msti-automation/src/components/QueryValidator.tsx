@@ -831,6 +831,230 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
           </div>
         );
 
+      case 'status-code':
+        // For status-code, detect HTTP or DNS query type and extract relevant data
+        let queryType: string = 'unknown';
+        let statusInfo: any = {};
+        let servers: string[] = [];
+        
+        try {
+          console.log('🔍 QueryValidator status-code FULL data:', JSON.stringify(validationResult.data, null, 2));
+          
+          // Extract data from response structure
+          if (validationResult.data?.series && Array.isArray(validationResult.data.series)) {
+            console.log('🔍 Found series, count:', validationResult.data.series.length);
+            
+            // Collect all unique servers from the series
+            validationResult.data.series.forEach((serie: any, idx: number) => {
+              console.log(`🔍 Serie ${idx}:`, {
+                name: serie.name,
+                tags: serie.tags,
+                fields: serie.fields?.map((f: any) => ({ name: f.name, type: f.type, labels: f.labels }))
+              });
+              
+              const tags = serie.tags || {};
+              
+              // FIRST: Check fields for labels (InfluxDB 2.x style)
+              if (serie.fields && Array.isArray(serie.fields)) {
+                serie.fields.forEach((field: any) => {
+                  if (field.labels) {
+                    console.log('🔍 Found labels in field:', field.labels);
+                    
+                    // Extract server/domain from labels
+                    const serverName = field.labels.server || field.labels.domain || field.labels.host || field.labels.url;
+                    if (serverName && !servers.includes(serverName)) {
+                      servers.push(serverName);
+                      console.log('✅ Extracted server from labels:', serverName);
+                    }
+                    
+                    // Detect query type from labels
+                    if (field.labels.tag1 === 'http' || field.labels._measurement === 'http_response') {
+                      queryType = 'http';
+                      console.log('✅ Detected HTTP from labels');
+                    } else if (field.labels.tag1 === 'dns' || field.labels._measurement === 'dns_query') {
+                      queryType = 'dns';
+                      console.log('✅ Detected DNS from labels');
+                    }
+                  }
+                });
+              }
+              
+              // SECOND: Try to extract server name from tags
+              const serverName = tags.server || tags.domain || tags.host || tags.url;
+              if (serverName && !servers.includes(serverName)) {
+                servers.push(serverName);
+                console.log('✅ Extracted server from tags:', serverName);
+              }
+              
+              // THIRD: Detect query type from tags
+              if (tags.tag1 === 'http' || tags._measurement === 'http_response') {
+                queryType = 'http';
+                console.log('✅ Detected HTTP from tags');
+              } else if (tags.tag1 === 'dns' || tags._measurement === 'dns_query') {
+                queryType = 'dns';
+                console.log('✅ Detected DNS from tags');
+              }
+              
+              // FOURTH: Check field names to determine type if not detected yet
+              if (queryType === 'unknown' && serie.fields) {
+                const fieldNames = serie.fields.map((f: any) => f.name.toLowerCase());
+                console.log('🔍 Field names:', fieldNames);
+                
+                if (fieldNames.includes('http_response_code') || fieldNames.includes('status_code')) {
+                  queryType = 'http';
+                  console.log('✅ Detected HTTP from field names');
+                } else if (fieldNames.includes('query_time_ms') || fieldNames.includes('rcode')) {
+                  queryType = 'dns';
+                  console.log('✅ Detected DNS from field names');
+                }
+              }
+              
+              // Extract status information from first serie (for preview)
+              if (!statusInfo.status && serie.fields) {
+                if (queryType === 'http') {
+                  const statusField = serie.fields.find((f: any) =>
+                    f.name.toLowerCase().includes('status_code') ||
+                    f.name === 'http_response_code'
+                  );
+                  if (statusField && statusField.values && statusField.values.length > 0) {
+                    const statusCode = statusField.values[statusField.values.length - 1];
+                    statusInfo.status = statusCode;
+                    console.log('✅ Extracted status code:', statusCode);
+                  }
+                } else if (queryType === 'dns') {
+                  const rcodeField = serie.fields.find((f: any) =>
+                    f.name.toLowerCase().includes('rcode')
+                  );
+                  if (rcodeField && rcodeField.values && rcodeField.values.length > 0) {
+                    const rcode = rcodeField.values[rcodeField.values.length - 1];
+                    statusInfo.status = rcode;
+                    console.log('✅ Extracted rcode:', rcode);
+                  }
+                }
+                
+                // Extract response time
+                const timeField = serie.fields.find((f: any) =>
+                  f.name.toLowerCase().includes('response_time') ||
+                  f.name.toLowerCase().includes('query_time')
+                );
+                if (timeField && timeField.values && timeField.values.length > 0) {
+                  statusInfo.responseTime = timeField.values[timeField.values.length - 1];
+                  console.log('✅ Extracted response time:', statusInfo.responseTime);
+                }
+              }
+            });
+          }
+          
+          console.log('✅ FINAL Status-code detection:', { queryType, servers, statusInfo });
+          
+          return (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="text-sm font-medium text-blue-800">Status Code Preview</h4>
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewData(false)}
+                  className="text-blue-400 hover:text-blue-600"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                {/* Query Type Detection */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-blue-700">Query Type:</span>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    queryType === 'http' ? 'bg-green-100 text-green-700' :
+                    queryType === 'dns' ? 'bg-purple-100 text-purple-700' :
+                    'bg-gray-100 text-gray-700'
+                  }`}>
+                    {queryType.toUpperCase()}
+                  </span>
+                </div>
+                
+                {/* Servers Detected */}
+                {servers.length > 0 && (
+                  <div>
+                    <span className="text-sm font-medium text-blue-700">Servers Detected:</span>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {servers.map((server, idx) => (
+                        <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">
+                          {server}
+                        </span>
+                      ))}
+                    </div>
+                    {servers.length > 1 && (
+                      <p className="mt-2 text-xs text-blue-600">
+                        💡 Multiple servers detected! You can use "Check All Servers" option to create panels for each.
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                {/* Status Preview */}
+                {statusInfo.status && (
+                  <div className="p-3 bg-white rounded border border-blue-200">
+                    <div className="text-xs text-gray-600 mb-1">Sample Status:</div>
+                    <div className="text-lg font-bold text-gray-800">
+                      {queryType === 'http' ? (
+                        `HTTP ${statusInfo.status} ${statusInfo.status === 200 ? '(OK)' : ''}`
+                      ) : queryType === 'dns' ? (
+                        `${statusInfo.status} ${statusInfo.status === 'NOERROR' ? '(OK)' : '(Error)'}`
+                      ) : (
+                        statusInfo.status
+                      )}
+                    </div>
+                    {statusInfo.responseTime && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Response Time: {statusInfo.responseTime} ms
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Warning if no servers detected */}
+                {servers.length === 0 && (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
+                    <p className="text-sm text-yellow-700">
+                      ⚠️ No server information detected. Ensure your query includes server/domain tags.
+                    </p>
+                  </div>
+                )}
+                
+                {/* Query Type Unknown Warning */}
+                {queryType === 'unknown' && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded">
+                    <p className="text-sm text-red-700">
+                      ⚠️ Could not detect query type (HTTP or DNS). Ensure your query returns:
+                    </p>
+                    <ul className="text-xs text-red-600 mt-2 ml-4 list-disc">
+                      <li>For HTTP: <code className="bg-red-100 px-1">http_response_code</code> or <code className="bg-red-100 px-1">status_code</code> field</li>
+                      <li>For DNS: <code className="bg-red-100 px-1">rcode</code> field</li>
+                    </ul>
+                  </div>
+                )}
+                
+                {/* Debug info */}
+                <details className="text-xs text-gray-400">
+                  <summary className="cursor-pointer">Debug Info (Click to expand)</summary>
+                  <pre className="mt-2 bg-gray-100 p-2 rounded text-xs overflow-auto max-h-32">
+                    {JSON.stringify(validationResult.data, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            </div>
+          );
+        } catch (error) {
+          return (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-700">
+                Error parsing Status Code data: {error instanceof Error ? error.message : 'Unknown error'}
+              </p>
+            </div>
+          );
+        }
+
       case 'table':
       default:
         return (
