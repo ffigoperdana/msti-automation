@@ -18,7 +18,9 @@ export interface StartDiscoveryPayload {
 
 export const cdpService = {
   async startDiscovery(payload: StartDiscoveryPayload): Promise<{ discoveryId: string }> {
-    const { data } = await api.post('/cdp/discover', payload, { timeout: 180000 });
+    // Biarkan server yang mengontrol durasi; discovery bisa lama di network besar.
+    // Axios default tanpa timeout supaya FE tidak memutus request saat backend masih proses.
+    const { data } = await api.post('/cdp/discover', payload);
     return data;
   },
 

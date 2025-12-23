@@ -27,10 +27,11 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
   const [connectionsVisible, setConnectionsVisible] = useState(true);
 
   // Canvas and card dimensions
-  const CANVAS_W = 1000;
-  const CANVAS_H = 500;
-  const CARD_W = 180;
-  const CARD_H = 130;
+  // Sedikit lebih besar agar muat banyak device, dan card lebih kecil
+  const CANVAS_W = 1400;
+  const CANVAS_H = 700;
+  const CARD_W = 140;
+  const CARD_H = 110;
 
   const computedPositions = useMemo(() => {
     if (!nodes.length) return {} as Record<string, { x: number; y: number }>;
@@ -56,7 +57,8 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
       } else {
         const cx = rectW / 2;
         const cy = rectH / 2;
-        const radius = Math.min(rectW, rectH) / 3 - margin;
+        // Radius sedikit lebih besar agar node tidak terlalu rapat
+        const radius = Math.min(rectW, rectH) / 2.4 - margin;
         nodes.forEach((node, i) => {
           const angle = (2 * Math.PI * i) / n;
           const x = cx + radius * Math.cos(angle);
@@ -225,9 +227,9 @@ const TopologyGraph: React.FC<TopologyGraphProps> = ({ nodes, links }) => {
               {/* Hostname above circle */}
               <div className="device-hostname font-bold text-sm mb-2" title={n.label}>{n.label}</div>
               
-              {/* Main circle node - double circle like in image */}
-              <div className="rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all border-4" style={{ width: 70, height: 70, borderColor: nodeColor, backgroundColor: 'white' }}>
-                <div className="rounded-full" style={{ width: 50, height: 50, backgroundColor: nodeBgColor, border: '3px solid ' + nodeColor }}>
+              {/* Main circle node - slightly smaller for dense topologies */}
+              <div className="rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all border-4" style={{ width: 56, height: 56, borderColor: nodeColor, backgroundColor: 'white' }}>
+                <div className="rounded-full" style={{ width: 40, height: 40, backgroundColor: nodeBgColor, border: '3px solid ' + nodeColor }}>
                 </div>
               </div>
               

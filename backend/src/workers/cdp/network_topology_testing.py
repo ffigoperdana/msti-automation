@@ -152,12 +152,18 @@ class NetworkTopologyDiscovery:
         return self._classify_device_type(platform_text)
 
     def _neighbor_identifier(self, neighbor: dict) -> str:
-        """Identifier stabil untuk node neighbor; gunakan IP jika ada, tambahkan suffix interface agar unik."""
+        """Identifier stabil untuk node neighbor.
+
+        Gunakan IP management sebagai ID utama node agar konsisten dengan
+        node di topology graph dan untuk menghindari mismatch antara node dan
+        links. Informasi interface tetap disimpan di field lain (local_interface,
+        port_id) dan dipakai sebagai label link, bukan sebagai bagian dari ID.
+        """
         ip = neighbor.get("ip")
-        suffix = neighbor.get("port_id") or neighbor.get("local_interface")
         if ip:
-            return f"{ip}#{suffix}" if suffix else ip
+            return ip
         hostname = neighbor.get("hostname", "Unknown")
+        suffix = neighbor.get("port_id") or neighbor.get("local_interface")
         return f"HOST:{hostname}#{suffix}" if suffix else f"HOST:{hostname}"
     def _detect_type_from_pid(self, text: str) -> str:
         """Map PID string to device type."""
