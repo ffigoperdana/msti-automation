@@ -10,7 +10,7 @@ RUN apk add --no-cache \
     tini \
     python3 \
     py3-pip \
- && python3 -m pip install --no-cache-dir paramiko
+ && python3 -m pip install --no-cache-dir --break-system-packages paramiko
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
