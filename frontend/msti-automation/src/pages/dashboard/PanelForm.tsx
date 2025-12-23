@@ -23,6 +23,9 @@ interface PanelData {
   srcQuery?: string;  // NetFlow source query
   dstQuery?: string;  // NetFlow destination query
   bytesQuery?: string; // NetFlow in_bytes query
+  statusCodeQuery?: string; // Status code query (http_response_code or rcode)
+  responseTimeQuery?: string; // Response time query (response_time or query_time_ms)
+  dnsQuery?: string; // DNS query (returns both rcode and query_time_ms)
   refreshInterval?: number; // Add refresh interval
   gridSpan?: number; // Grid column span (1, 2, or 3)
   options: {
@@ -108,6 +111,9 @@ const PanelForm: React.FC = () => {
           
           // Check if this is NetFlow Time Series with 3 queries
           const isNetFlowTimeSeries = panel.type === 'netflow-timeseries' && panel.queries?.length === 3;
+          const isStatusCodeHTTP = panel.type === 'status-code' && panel.queries?.length === 2;
+          const isStatusCodeDNS = panel.type === 'status-code' && panel.queries?.length === 1 && panel.queries[0].refId === 'dns';
+          const isStatusCode = isStatusCodeHTTP || isStatusCodeDNS;
           
           // Transform panel data to match form structure
           setPanelData({
@@ -115,10 +121,13 @@ const PanelForm: React.FC = () => {
             description: panel.description || '',
             type: panel.type,
             dataSourceId: panel.queries?.[0]?.dataSourceId,
-            queryText: isNetFlowTimeSeries ? undefined : panel.queries?.[0]?.query,
+            queryText: (isNetFlowTimeSeries || isStatusCode) ? undefined : panel.queries?.[0]?.query,
             srcQuery: isNetFlowTimeSeries ? panel.queries.find((q: any) => q.refId === 'src')?.query : undefined,
             dstQuery: isNetFlowTimeSeries ? panel.queries.find((q: any) => q.refId === 'dst')?.query : undefined,
             bytesQuery: isNetFlowTimeSeries ? panel.queries.find((q: any) => q.refId === 'bytes')?.query : undefined,
+            statusCodeQuery: isStatusCodeHTTP ? panel.queries.find((q: any) => q.refId === 'statusCode')?.query : undefined,
+            responseTimeQuery: isStatusCodeHTTP ? panel.queries.find((q: any) => q.refId === 'responseTime')?.query : undefined,
+            dnsQuery: isStatusCodeDNS ? panel.queries.find((q: any) => q.refId === 'dns')?.query : undefined,
             refreshInterval: panel.refreshInterval || 10000,
             gridSpan: panel.config?.gridSpan || panel.gridSpan || 1,
             options: {
@@ -267,6 +276,21 @@ const PanelForm: React.FC = () => {
         setLoading(false);
         return;
       }
+    } else if (panelData.type === 'status-code') {
+      const queryType = panelData.options.queryType || 'http';
+      if (queryType === 'http') {
+        if (!panelData.title || !panelData.dataSourceId || !panelData.statusCodeQuery || !panelData.responseTimeQuery) {
+          setError('Harap lengkapi semua field yang diperlukan untuk Status Code HTTP (Status Code Query dan Response Time Query)');
+          setLoading(false);
+          return;
+        }
+      } else if (queryType === 'dns') {
+        if (!panelData.title || !panelData.dataSourceId || !panelData.dnsQuery) {
+          setError('Harap lengkapi semua field yang diperlukan untuk Status Code DNS (DNS Query)');
+          setLoading(false);
+          return;
+        }
+      }
     } else if (panelData.type === 'table') {
       // Validasi untuk Table
       if (!panelData.title || !panelData.dataSourceId) {
@@ -350,6 +374,43 @@ const PanelForm: React.FC = () => {
             }
           ]
         };
+      } else if (panelData.type === 'status-code') {
+        const queryType = panelData.options.queryType || 'http';
+        
+        if (queryType === 'http') {
+          panelPayload = {
+            ...panelData,
+            config: {
+              gridSpan: panelData.gridSpan || 1
+            },
+            queries: [
+              {
+                refId: 'statusCode',
+                dataSourceId: panelData.dataSourceId,
+                query: panelData.statusCodeQuery
+              },
+              {
+                refId: 'responseTime',
+                dataSourceId: panelData.dataSourceId,
+                query: panelData.responseTimeQuery
+              }
+            ]
+          };
+        } else if (queryType === 'dns') {
+          panelPayload = {
+            ...panelData,
+            config: {
+              gridSpan: panelData.gridSpan || 1
+            },
+            queries: [
+              {
+                refId: 'dns',
+                dataSourceId: panelData.dataSourceId,
+                query: panelData.dnsQuery
+              }
+            ]
+          };
+        }
       } else if (panelData.type === 'table') {
         // Table panel with mode support
         const mode = panelData.options.mode || 'simplified';
@@ -455,6 +516,19 @@ const PanelForm: React.FC = () => {
              panelData.srcQuery && 
              panelData.dstQuery && 
              panelData.bytesQuery;
+    }
+    if (panelData.type === 'status-code') {
+      const queryType = panelData.options.queryType || 'http';
+      if (queryType === 'http') {
+        return panelData.title && 
+               panelData.dataSourceId && 
+               panelData.statusCodeQuery && 
+               panelData.responseTimeQuery;
+      } else {
+        return panelData.title && 
+               panelData.dataSourceId && 
+               panelData.dnsQuery;
+      }
     }
     return panelData.title && 
            panelData.dataSourceId && 
@@ -627,8 +701,168 @@ const PanelForm: React.FC = () => {
               </select>
             </div>
           
-          {/* NetFlow Time Series - 3 Query Fields */}
-          {panelData.type === 'netflow-timeseries' ? (
+          {/* Status Code - HTTP/DNS Selection */}
+          {panelData.type === 'status-code' ? (
+            <div className="space-y-4">
+              {/* Query Type Selector */}
+              <div>
+                <label htmlFor="queryType" className="block text-sm font-medium text-gray-700 mb-2">
+                  Query Type
+                </label>
+                <select
+                  id="queryType"
+                  value={panelData.options.queryType || 'http'}
+                  onChange={(e) => {
+                    setPanelData(prev => ({
+                      ...prev,
+                      options: { ...prev.options, queryType: e.target.value as 'http' | 'dns' }
+                    }));
+                  }}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                >
+                  <option value="http">HTTP (2 queries: status + response time)</option>
+                  <option value="dns">DNS (1 query: rcode + query_time_ms)</option>
+                </select>
+                <p className="mt-1 text-sm text-gray-500">
+                  HTTP requires 2 separate queries. DNS query returns both rcode and query_time_ms.
+                </p>
+              </div>
+
+              {/* HTTP Mode - 2 Queries */}
+              {panelData.options.queryType === 'http' && (
+                <>
+                  <div>
+                    <label htmlFor="statusCodeQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                      Status Code Query (http_response_code)
+                    </label>
+                <textarea
+                  id="statusCodeQuery"
+                  name="statusCodeQuery"
+                  value={panelData.statusCodeQuery || ''}
+                  onChange={handleInputChange}
+                  rows={6}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                  placeholder={`from(bucket: "telegraf")
+  |> range(start: -1h, stop: now())
+  |> filter(fn: (r) =>
+    r["tag1"] == "http" and
+    r["_measurement"] == "http_response" and
+    r["server"] =~ /^https:\\/\\/evans/ and
+    r["_field"] == "http_response_code"
+  )
+  |> last()`}
+                  required
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  Query for HTTP status code (http_response_code) or DNS rcode. Use |{'>'} last() to get latest value.
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="responseTimeQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                  Response Time Query
+                </label>
+                <textarea
+                  id="responseTimeQuery"
+                  name="responseTimeQuery"
+                  value={panelData.responseTimeQuery || ''}
+                  onChange={handleInputChange}
+                  rows={6}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                  placeholder={`from(bucket: "telegraf")
+  |> range(start: -1h, stop: now())
+  |> filter(fn: (r) =>
+    r["tag1"] == "http" and
+    r["_measurement"] == "http_response" and
+    r["server"] =~ /^https:\\/\\/evans/ and
+    r["_field"] == "response_time"
+  )
+  |> last()`}
+                  required
+                />
+                    <p className="mt-1 text-sm text-gray-500">
+                      Query for HTTP response time. Use |{'>'} last() to get latest value.
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* DNS Mode - 1 Query */}
+              {panelData.options.queryType === 'dns' && (
+                <div>
+                  <label htmlFor="dnsQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                    DNS Query (returns rcode and query_time_ms)
+                  </label>
+                  <textarea
+                    id="dnsQuery"
+                    name="dnsQuery"
+                    value={panelData.dnsQuery || ''}
+                    onChange={handleInputChange}
+                    rows={8}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                    placeholder={`from(bucket: "telegraf")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["tag1"] == "dns")
+  |> filter(fn: (r) => r["_measurement"] == "dns_query")
+  |> filter(fn: (r) => r["server"] == "10.20.65.102")
+  |> filter(fn: (r) => r["domain"] == "ess.mastersystem.co.id")
+  |> last()`}
+                    required
+                  />
+                  <p className="mt-1 text-sm text-gray-500">
+                    DNS query returns multiple fields including rcode (status) and query_time_ms (response time). Use |{'>'} last() to get latest value.
+                  </p>
+                </div>
+              )}
+
+              {/* Query Validators */}
+              {panelData.options.queryType === 'http' && (
+                <>
+                  {panelData.dataSourceId && panelData.statusCodeQuery && (
+                    <div className="border-t pt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Status Code Query Validation</h4>
+                      <QueryValidator
+                        dataSourceId={panelData.dataSourceId}
+                        query={panelData.statusCodeQuery}
+                        onValidationResult={() => {}}
+                        onQueryChange={() => {}}
+                        panelType="status-code"
+                        showPreview={true}
+                      />
+                    </div>
+                  )}
+                  
+                  {panelData.dataSourceId && panelData.responseTimeQuery && (
+                    <div className="border-t pt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Response Time Query Validation</h4>
+                      <QueryValidator
+                        dataSourceId={panelData.dataSourceId}
+                        query={panelData.responseTimeQuery}
+                        onValidationResult={() => {}}
+                        onQueryChange={() => {}}
+                        panelType="status-code"
+                        showPreview={true}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+              
+              {panelData.options.queryType === 'dns' && panelData.dataSourceId && panelData.dnsQuery && (
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">DNS Query Validation</h4>
+                  <QueryValidator
+                    dataSourceId={panelData.dataSourceId}
+                    query={panelData.dnsQuery}
+                    onValidationResult={() => {}}
+                    onQueryChange={() => {}}
+                    panelType="status-code"
+                    showPreview={true}
+                  />
+                </div>
+              )}
+            </div>
+          ) : panelData.type === 'netflow-timeseries' ? (
             <div className="space-y-4">
               <div>
                 <label htmlFor="srcQuery" className="block text-sm font-medium text-gray-700 mb-2">

@@ -27,6 +27,9 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
   const [selectedInterfaces, setSelectedInterfaces] = useState<string[]>([]);
   const [showInterfaceDropdown, setShowInterfaceDropdown] = useState(false);
   const [interfaceSearchQuery, setInterfaceSearchQuery] = useState('');
+  const [selectedSystems, setSelectedSystems] = useState<string[]>([]);
+  const [showSystemDropdown, setShowSystemDropdown] = useState(false);
+  const [systemSearchQuery, setSystemSearchQuery] = useState('');
 
   // Gunakan data dari VisualizationPanel (queryResult) agar tidak duplikat fetch
   useEffect(() => {
@@ -62,6 +65,34 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
   // Use backend data if available, otherwise fall back to prop data
   const activeData = backendData || data;
 
+  // Helper function to extract system name from series name
+  // Examples:
+  //   "RTR - MSI - ROXY - 4321 - 01 - IN - (GigabitEthernet0/0/0)" -> "RTR - MSI - ROXY"
+  //   "MSI - RTR - VG - WISMA78.mastersystem.co.id - IN - (GigabitEthernet0/0/0)" -> "MSI - RTR - VG - WISMA78.mastersystem.co.id"
+  const extractSystemName = (seriesName: string): string => {
+    const rawParts = seriesName.split('-').map(p => p.trim()).filter(Boolean);
+
+    const systemParts: string[] = [];
+    for (const part of rawParts) {
+      // Stop when we hit:
+      // - pure numbers (device/index like 4321, 01)
+      // - direction / metric tokens (IN, OUT, ifIn*, ifOut*)
+      // - interface-only token that starts with "("
+      if (/^\d+$/.test(part)) break;
+      if (/^IN$/i.test(part) || /^OUT$/i.test(part)) break;
+      if (/^ifIn/i.test(part) || /^ifOut/i.test(part)) break;
+      if (part.startsWith('(')) break;
+
+      systemParts.push(part);
+    }
+
+    if (systemParts.length === 0) {
+      return seriesName.trim();
+    }
+
+    return systemParts.join(' - ');
+  };
+
   // Extract unique interface names from series
   const availableInterfaces = useMemo((): string[] => {
     if (!activeData?.series || activeData.series.length === 0) return [];
@@ -73,6 +104,17 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
     });
     
     return Array.from(new Set<string>(interfaces)).sort();
+  }, [activeData]);
+
+  // Extract unique system names from series
+  const availableSystems = useMemo((): string[] => {
+    if (!activeData?.series || activeData.series.length === 0) return [];
+    
+    const systems: string[] = activeData.series.map((serie: any): string => {
+      return extractSystemName(serie.name);
+    });
+    
+    return Array.from(new Set<string>(systems)).sort();
   }, [activeData]);
 
   // Load selected interfaces from localStorage on mount
@@ -102,6 +144,33 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
     }
   }, [panelId, availableInterfaces]);
 
+  // Load selected systems from localStorage on mount
+  useEffect(() => {
+    if (panelId && availableSystems.length > 0) {
+      const storageKey = `timeseries-systems-${panelId}`;
+      const saved = localStorage.getItem(storageKey);
+      
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          // Only use saved systems that still exist in current data
+          const validSystems = parsed.filter((sys: string) => 
+            availableSystems.includes(sys)
+          );
+          if (validSystems.length > 0) {
+            setSelectedSystems(validSystems);
+            return;
+          }
+        } catch (e) {
+          console.warn('Failed to parse saved systems:', e);
+        }
+      }
+      
+      // Default: select all systems
+      setSelectedSystems(availableSystems);
+    }
+  }, [panelId, availableSystems]);
+
   // Save selected interfaces to localStorage when changed
   useEffect(() => {
     if (panelId && selectedInterfaces.length > 0) {
@@ -109,6 +178,14 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
       localStorage.setItem(storageKey, JSON.stringify(selectedInterfaces));
     }
   }, [panelId, selectedInterfaces]);
+
+  // Save selected systems to localStorage when changed
+  useEffect(() => {
+    if (panelId && selectedSystems.length > 0) {
+      const storageKey = `timeseries-systems-${panelId}`;
+      localStorage.setItem(storageKey, JSON.stringify(selectedSystems));
+    }
+  }, [panelId, selectedSystems]);
 
   // Helper function to transform series name: ifIn* -> IN, ifOut* -> OUT
   const cleanSeriesName = (seriesName: string): string => {
@@ -168,11 +245,19 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
       '#59a14f', '#edc949', '#af7aa1', '#ff9da7'
     ];
 
-    // Filter series based on selected interfaces
+    // Filter series based on selected interfaces AND systems
     const filteredSeries = activeData.series.filter((serie: any) => {
-      const match = serie.name.match(/\(([^)]+)\)/);
-      const interfaceName = match ? match[1] : serie.name;
-      return selectedInterfaces.includes(interfaceName);
+      // Check interface filter
+      const interfaceMatch = serie.name.match(/\(([^)]+)\)/);
+      const interfaceName = interfaceMatch ? interfaceMatch[1] : serie.name;
+      const interfaceOk = selectedInterfaces.includes(interfaceName);
+      
+      // Check system filter
+      const systemName = extractSystemName(serie.name);
+      const systemOk = selectedSystems.includes(systemName);
+      
+      // Both filters must pass
+      return interfaceOk && systemOk;
     });
 
     // Backend sends CORRECT format - just map colors!
@@ -205,7 +290,7 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
         }
       };
     });
-  }, [activeData, selectedInterfaces]);
+  }, [activeData, selectedInterfaces, selectedSystems]);
 
   // Initialize and update chart
   useEffect(() => {
@@ -372,8 +457,101 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
           <div className="flex items-center justify-between mb-2">
             <h4 className="font-medium">Series</h4>
             
-            {/* Interface Filter Dropdown */}
-            <div className="relative">
+            <div className="flex items-center space-x-2">
+              {/* System Filter Dropdown */}
+              {availableSystems.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setShowSystemDropdown(!showSystemDropdown)}
+                    className="flex items-center space-x-2 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
+                    </svg>
+                    <span>
+                      {selectedSystems.length === availableSystems.length
+                        ? 'All Systems'
+                        : `${selectedSystems.length} of ${availableSystems.length} systems`}
+                    </span>
+                    <svg className={`w-4 h-4 text-gray-400 transition-transform ${showSystemDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+
+                  {showSystemDropdown && (
+                    <>
+                      {/* Backdrop */}
+                      <div 
+                        className="fixed inset-0 z-10" 
+                        onClick={() => setShowSystemDropdown(false)}
+                      />
+                      
+                      {/* Dropdown Panel */}
+                      <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                        {/* Search Box */}
+                        <div className="p-3 border-b border-gray-200">
+                          <input
+                            type="text"
+                            placeholder="Search systems..."
+                            value={systemSearchQuery}
+                            onChange={(e) => setSystemSearchQuery(e.target.value)}
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+
+                        {/* Select All / Deselect All */}
+                        <div className="p-2 border-b border-gray-200 bg-gray-50">
+                          <button
+                            onClick={() => {
+                              if (selectedSystems.length === availableSystems.length) {
+                                setSelectedSystems([]);
+                              } else {
+                                setSelectedSystems(availableSystems);
+                              }
+                            }}
+                            className="w-full text-left px-2 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded"
+                          >
+                            {selectedSystems.length === availableSystems.length ? '✓ Deselect All' : 'Select All'}
+                          </button>
+                        </div>
+
+                        {/* System List */}
+                        <div className="max-h-64 overflow-y-auto">
+                          {availableSystems
+                            .filter((system: string) => 
+                              system.toLowerCase().includes(systemSearchQuery.toLowerCase())
+                            )
+                            .map((systemName: string) => (
+                              <label
+                                key={systemName}
+                                className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedSystems.includes(systemName)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedSystems([...selectedSystems, systemName]);
+                                    } else {
+                                      setSelectedSystems(selectedSystems.filter(s => s !== systemName));
+                                    }
+                                  }}
+                                  className="form-checkbox h-4 w-4 text-blue-600 rounded"
+                                />
+                                <span className="ml-2 text-sm">{systemName}</span>
+                              </label>
+                            ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+              
+              {/* Interface Filter Dropdown */}
+              <div className="relative">
               <button
                 onClick={() => setShowInterfaceDropdown(!showInterfaceDropdown)}
                 className="flex items-center space-x-2 px-3 py-1.5 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -478,6 +656,7 @@ const TimeSeries: React.FC<TimeSeriesProps> = ({ data, queryResult, panelId }) =
                   </div>
                 </>
               )}
+            </div>
             </div>
           </div>
           

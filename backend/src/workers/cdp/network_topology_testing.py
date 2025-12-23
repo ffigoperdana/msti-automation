@@ -185,12 +185,30 @@ class NetworkTopologyDiscovery:
         except Exception:
             return "router"
 
-    def get_arp_detail(self, ssh):
-        """Parse `show ip arp detail` → list of {ip, mac, iface, phys_iface}"""
+    def get_arp_detail(self, ssh=None, connection=None):
+        """Parse ARP table → list of {ip, mac, iface, phys_iface}.
+
+        Some platforms use `show arp detail`, others `show ip arp detail`.
+        Try the generic form first, then fall back. Prefer reusing an
+        existing interactive channel (connection) to avoid opening additional
+        exec channels, which some devices limit and report as
+        `ChannelException(4, 'Resource shortage')`.
+        """
         entries = []
         try:
-            stdin, stdout, stderr = ssh.exec_command("show ip arp detail")
-            out = stdout.read().decode()
+            if connection is not None:
+                out = self.send_command(connection, "show arp detail")
+                if not out or "Invalid input" in out or "Incomplete" in out:
+                    out = self.send_command(connection, "show ip arp detail")
+            elif ssh is not None:
+                # Try generic first
+                stdin, stdout, stderr = ssh.exec_command("show arp detail")
+                out = stdout.read().decode()
+                if not out or "Invalid input" in out or "Incomplete" in out:
+                    stdin, stdout, stderr = ssh.exec_command("show ip arp detail")
+                    out = stdout.read().decode()
+            else:
+                return []
             for line in out.splitlines():
                 line = line.strip()
                 # Example row:
@@ -226,11 +244,24 @@ class NetworkTopologyDiscovery:
             log(f"Error getting device info for {ip}: {e}")
             return {"ip": ip, "hostname": f"Unknown-{ip.split('.')[-1]}", "device_type": "router"}
 
-    def get_cdp_neighbors(self, ssh):
-        """Return list of CDP neighbors without invoke_shell()"""
+    def get_cdp_neighbors(self, ssh=None, connection=None):
+        """Return list of CDP neighbors.
+
+        If an interactive shell channel (`connection`) is provided, reuse it
+        to send the command; this avoids opening extra exec channels which can
+        hit resource limits on some devices. Otherwise fall back to
+        `ssh.exec_command`.
+        """
         try:
-            stdin, stdout, stderr = ssh.exec_command("show cdp neighbor detail")
-            out = stdout.read().decode()
+            # Use canonical IOS syntax with plural "neighbors". Some images
+            # don't accept the singular form and would return no CDP output.
+            if connection is not None:
+                out = self.send_command(connection, "show cdp neighbors detail")
+            elif ssh is not None:
+                stdin, stdout, stderr = ssh.exec_command("show cdp neighbors detail")
+                out = stdout.read().decode()
+            else:
+                return []
             neighbors = []
             cur = {}
             for line in out.splitlines():
@@ -264,6 +295,12 @@ class NetworkTopologyDiscovery:
                         cur["platform"] = plat.group(1).strip()
             if cur:
                 neighbors.append(cur)
+            # Debug logging to understand what we parsed from the device
+            try:
+                sample = " | ".join(out.splitlines()[:10])
+                log(f"get_cdp_neighbors: parsed {len(neighbors)} neighbors; sample output: {sample}")
+            except Exception:
+                pass
             return neighbors
         except Exception as e:
             log(f"Error getting CDP neighbors: {e}")
@@ -287,7 +324,8 @@ class NetworkTopologyDiscovery:
             IP: 192.168.1.10
         """
         try:
-            stdin, stdout, stderr = ssh.exec_command("show lldp neighbor detail")
+            # Same as CDP: use canonical plural form to avoid syntax issues.
+            stdin, stdout, stderr = ssh.exec_command("show lldp neighbors detail")
             out = stdout.read().decode()
             neighbors = []
             cur = {}
@@ -385,10 +423,11 @@ class NetworkTopologyDiscovery:
             base["hostname"] = hostname
             device_info = base
 
-        # Get neighbors based on protocol
+        # Get neighbors based on protocol (reuse interactive shell connection
+        # to avoid opening new channels)
         neighbors = []
         if protocol in ['cdp', 'both']:
-            cdp_neighbors = self.get_cdp_neighbors(ssh)
+            cdp_neighbors = self.get_cdp_neighbors(connection=connection)
             log(f"CDP neighbors found for {start_ip}: {len(cdp_neighbors)}")
             neighbors.extend(cdp_neighbors)
         
@@ -400,7 +439,7 @@ class NetworkTopologyDiscovery:
         log(f"Total neighbors found for {start_ip}: {len(neighbors)}")
 
         # Topologi dasar: device utama + setiap neighbor sebagai node placeholder
-        device_info["arp_entries"] = self.get_arp_detail(ssh)
+        device_info["arp_entries"] = self.get_arp_detail(connection=connection)
         topology = [{"device": device_info, "neighbors": neighbors}]
 
         for n in neighbors:
@@ -476,17 +515,17 @@ class NetworkTopologyDiscovery:
                 base["hostname"] = self.detect_hostname(ssh=ssh, ip=ip)
                 info = base
             
-            # Get neighbors based on protocol
+            # Get neighbors based on protocol (reuse interactive shell)
             neighbors = []
             if protocol in ['cdp', 'both']:
-                cdp_neighbors = self.get_cdp_neighbors(ssh)
+                cdp_neighbors = self.get_cdp_neighbors(connection=connection)
                 neighbors.extend(cdp_neighbors)
             
             if protocol in ['lldp', 'both']:
                 lldp_neighbors = self.get_lldp_neighbors(ssh)
                 neighbors.extend(lldp_neighbors)
             
-            info["arp_entries"] = self.get_arp_detail(ssh)
+            info["arp_entries"] = self.get_arp_detail(connection=connection)
             # update atau tambah node untuk ip ini
             found_idx = next((i for i, d in enumerate(topology) if d['device'].get('ip') == ip), None)
             if found_idx is not None:

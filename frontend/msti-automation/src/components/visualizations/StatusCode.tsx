@@ -16,6 +16,15 @@ interface Field {
   values: any[];
 }
 
+// DNS rcode mapping
+const getDnsStatusText = (rcode: string): { text: string; color: string } => {
+  if (rcode.toUpperCase() === 'NOERROR') {
+    return { text: 'OK', color: 'green' };
+  } else {
+    return { text: rcode, color: 'red' };
+  }
+};
+
 // HTTP Status Code mapping
 const getHttpStatusText = (code: number): { text: string; color: string } => {
   if (code >= 200 && code < 300) {
@@ -41,7 +50,8 @@ const getHttpStatusText = (code: number): { text: string; color: string } => {
   }
 };
 
-const StatusCode: React.FC<StatusCodeProps> = ({ panelId, queryResult, options }) => {
+
+const StatusCode: React.FC<StatusCodeProps> = ({ panelId }) => {
   const [status, setStatus] = useState<string>('Unknown');
   const [statusColor, setStatusColor] = useState<string>('gray');
   const [serverName, setServerName] = useState<string>('Unknown Server');
@@ -52,346 +62,234 @@ const StatusCode: React.FC<StatusCodeProps> = ({ panelId, queryResult, options }
   useEffect(() => {
     const fetchData = async () => {
       if (!panelId) {
-        processQueryResult();
+        setError('No panel ID provided');
+        setLoading(false);
         return;
       }
 
       try {
         setLoading(true);
+        
+        // Execute panel query - this returns either 2 queries (HTTP) or 1 query (DNS)
         const response = await metricService.executePanelQuery(panelId);
         console.log('🔍 StatusCode executePanelQuery response:', JSON.stringify(response, null, 2));
-        processResponse(response);
-      } catch (err) {
-        console.error('StatusCode component error:', err);
-        setError('Failed to fetch status data');
-        setStatus('Down');
-        setStatusColor('red');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const processQueryResult = () => {
-      try {
-        setLoading(true);
-        console.log('🔍 StatusCode processQueryResult - queryResult:', JSON.stringify(queryResult, null, 2));
-        if (queryResult && Object.keys(queryResult).length > 0) {
-          processResponse(queryResult);
-        } else {
-          setStatus('No Data');
-          setStatusColor('gray');
-          setError('No data received');
-          console.log('❌ No queryResult data');
+        
+        // Response structure:
+        // HTTP mode: [{refId: 'statusCode', result: {...}}, {refId: 'responseTime', result: {...}}]
+        // DNS mode: [{refId: 'dns', result: {...}}]
+        if (!Array.isArray(response) || response.length === 0) {
+          throw new Error('No query results received');
         }
-      } catch (err) {
-        console.error('Error processing query result:', err);
-        setError('Failed to process data');
-        setStatus('Error');
-        setStatusColor('red');
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    const processResponse = (response: any) => {
-      try {
-        console.log('🔍 StatusCode processResponse - Full response:', JSON.stringify(response, null, 2));
+        // Check if this is DNS mode (single query)
+        const isDnsMode = response.length === 1 && response[0].refId === 'dns';
         
-        // Handle different response structures
-        let seriesData = null;
-        
-        // Case 1: Array response from executePanelQuery: [{refId, result: {series: [...]}}]
-        if (Array.isArray(response) && response.length > 0) {
-          console.log('✅ Response is array, accessing first element');
-          const firstResult = response[0];
-          if (firstResult?.result?.series && Array.isArray(firstResult.result.series)) {
-            console.log('✅ Found series in result.series');
-            seriesData = firstResult.result;
+        if (isDnsMode) {
+          // DNS Mode - single query returns both rcode and query_time_ms
+          const dnsResult = response[0];
+          if (!dnsResult?.result?.series?.[0]) {
+            throw new Error('No DNS data found');
           }
-        }
-        // Case 2: Direct series array (from validateFluxQuery sometimes)
-        else if (response?.series && Array.isArray(response.series)) {
-          console.log('✅ Found direct series array');
-          seriesData = response;
-        }
-        // Case 3: Nested in query result object (from validateFluxQuery)
-        else if (response && typeof response === 'object' && !Array.isArray(response)) {
-          const firstQueryKey = Object.keys(response)[0];
-          const firstQueryResult = response[firstQueryKey];
+
+          const dnsSeries = dnsResult.result.series[0];
+          const dnsFields = dnsSeries.fields;
           
-          if (firstQueryResult?.series && Array.isArray(firstQueryResult.series)) {
-            console.log('✅ Found nested series in query result object');
-            seriesData = firstQueryResult;
+          console.log('✅ Detected query type: DNS (single query mode)');
+          console.log('🔍 DNS fields:', dnsFields.map((f: Field) => ({ name: f.name, labels: (f as any).labels })));
+
+          // Extract domain name (for DNS, show domain not server)
+          let extractedDomain = 'Unknown Domain';
+          dnsFields.forEach((field: any) => {
+            if (field.labels) {
+              extractedDomain = field.labels.domain || extractedDomain;
+            }
+          });
+          if (extractedDomain === 'Unknown Domain' && dnsSeries.tags) {
+            extractedDomain = dnsSeries.tags.domain || extractedDomain;
           }
-        }
-        
-        if (!seriesData?.series?.[0]?.fields) {
-          console.log('❌ No series or fields found in response structure');
-          console.log('❌ Response type:', Array.isArray(response) ? 'array' : typeof response);
-          console.log('❌ Response length/keys:', Array.isArray(response) ? response.length : Object.keys(response || {}));
-          console.log('❌ Series data:', seriesData);
-          setStatus('No Data');
-          setStatusColor('gray');
-          return;
-        }
+          setServerName(extractedDomain);
+          console.log('✅ Extracted domain:', extractedDomain);
 
-        const fields = seriesData.series[0].fields;
-        const tags = seriesData.series[0].tags || {};
-        
-        console.log('🔍 All fields with details:', fields.map((f: Field) => ({ 
-          name: f.name, 
-          type: f.type, 
-          labels: (f as any).labels,
-          sampleValue: (f as any).values?.[0]
-        })));
-        console.log('🔍 Tags:', tags);
+          // Extract rcode from field labels (not as separate field!)
+          let rcodeValue: string | null = null;
+          dnsFields.forEach((field: any) => {
+            if (field.labels && field.labels.rcode) {
+              rcodeValue = field.labels.rcode;
+            }
+          });
 
-        // FIRST: Try to extract server name from field labels (InfluxDB 2.x style)
-        let extractedServerName = options?.serverName || 'Unknown Server';
-        fields.forEach((field: any) => {
-          if (field.labels) {
-            const serverFromLabel = field.labels.server || field.labels.domain || field.labels.host || field.labels.url;
-            if (serverFromLabel && extractedServerName === 'Unknown Server') {
-              extractedServerName = serverFromLabel;
-              console.log('✅ Extracted server from field labels:', serverFromLabel);
+          if (rcodeValue) {
+            const statusInfo = getDnsStatusText(rcodeValue);
+            setStatus(statusInfo.text);
+            setStatusColor(statusInfo.color);
+            console.log('✅ Set DNS status:', statusInfo.text, 'from rcode:', rcodeValue);
+          } else {
+            console.error('❌ No rcode found in field labels. Available fields:', dnsFields.map((f: Field) => f.name));
+            setStatus('No rcode');
+            setStatusColor('red');
+          }
+
+          // Extract query_time_ms (response time)
+          const timeField = dnsFields.find((f: Field) => f.name === 'query_time_ms' || f.name === '_value');
+          if (timeField && timeField.values.length > 0) {
+            const timeValue = timeField.values[timeField.values.length - 1];
+            const time = typeof timeValue === 'number' ? timeValue : parseFloat(timeValue);
+            if (!isNaN(time)) {
+              setResponseTime(time);
+              console.log('✅ Set DNS response time:', time, 'ms');
             }
           }
-        });
-        
-        // SECOND: Try tags if not found in labels
-        if (extractedServerName === 'Unknown Server') {
-          extractedServerName = tags.server || tags.domain || tags.host || tags.url || 'Unknown Server';
-          if (extractedServerName !== 'Unknown Server') {
-            console.log('✅ Extracted server from tags:', extractedServerName);
+        } else {
+          // HTTP Mode - 2 separate queries
+          if (response.length < 2) {
+            throw new Error('Expected 2 query results for HTTP mode (statusCode and responseTime)');
+          }
+
+          // HTTP Mode - 2 separate queries
+          if (response.length < 2) {
+            throw new Error('Expected 2 query results for HTTP mode (statusCode and responseTime)');
+          }
+
+          // Find statusCode and responseTime results
+          const statusCodeResult = response.find((r: any) => r.refId === 'statusCode');
+          const responseTimeResult = response.find((r: any) => r.refId === 'responseTime');
+
+          if (!statusCodeResult?.result?.series?.[0]) {
+            throw new Error('No status code data found');
+          }
+
+          // Extract status code value
+          const statusSeries = statusCodeResult.result.series[0];
+          const statusFields = statusSeries.fields;
+          
+          // Extract server name from labels or tags
+          let extractedServer = 'Unknown Server';
+          statusFields.forEach((field: any) => {
+            if (field.labels) {
+              extractedServer = field.labels.server || field.labels.domain || field.labels.host || field.labels.url || extractedServer;
+            }
+          });
+          if (extractedServer === 'Unknown Server' && statusSeries.tags) {
+            extractedServer = statusSeries.tags.server || statusSeries.tags.domain || statusSeries.tags.host || statusSeries.tags.url || extractedServer;
+          }
+          setServerName(extractedServer);
+
+          // Detect query type
+          let detectedType: 'http' | 'dns' | 'unknown' = 'unknown';
+          statusFields.forEach((field: any) => {
+            if (field.labels) {
+              if (field.labels.tag1 === 'http' || field.labels._measurement === 'http_response') {
+                detectedType = 'http';
+              } else if (field.labels.tag1 === 'dns' || field.labels._measurement === 'dns_query') {
+                detectedType = 'dns';
+              }
+            }
+          });
+          if (detectedType === 'unknown' && statusSeries.tags) {
+            if (statusSeries.tags.tag1 === 'http' || statusSeries.tags._measurement === 'http_response') {
+              detectedType = 'http';
+            } else if (statusSeries.tags.tag1 === 'dns' || statusSeries.tags._measurement === 'dns_query') {
+              detectedType = 'dns';
+            }
+          }
+          
+          // Check field names as last resort
+          if (detectedType === 'unknown') {
+            const fieldNames = statusFields.map((f: Field) => f.name.toLowerCase());
+            if (fieldNames.includes('http_response_code') || fieldNames.includes('status_code')) {
+              detectedType = 'http';
+            } else if (fieldNames.includes('rcode') || fieldNames.includes('query_time_ms')) {
+              detectedType = 'dns';
+            }
+          }
+          
+          console.log('✅ Detected query type:', detectedType);
+
+          // Extract status code value
+          let statusValue: any = null;
+          
+          // Look for the actual field name (http_response_code, rcode) OR _value
+          const valueField = statusFields.find((f: Field) => 
+            f.name === 'http_response_code' || 
+            f.name === 'status_code' || 
+            f.name === 'rcode' ||
+            f.name === '_value' || 
+            f.name === 'Value' || 
+            f.name === 'value'
+          );
+          
+          if (valueField && valueField.values.length > 0) {
+            statusValue = valueField.values[valueField.values.length - 1];
+            console.log('✅ Found status value in field:', valueField.name, 'value:', statusValue);
+          }
+
+          if (statusValue === null || statusValue === undefined) {
+            console.error('❌ No status code value found. Available fields:', statusFields.map((f: Field) => f.name));
+            throw new Error('No status code value found');
+          }
+
+          // Process based on type
+          if (detectedType === 'http') {
+            const statusCode = typeof statusValue === 'number' ? statusValue : parseFloat(statusValue);
+            if (!isNaN(statusCode)) {
+              const statusInfo = getHttpStatusText(statusCode);
+              setStatus(statusInfo.text);
+              setStatusColor(statusInfo.color);
+              console.log('✅ Set HTTP status:', statusInfo.text, 'color:', statusInfo.color);
+            } else {
+              setStatus('Down');
+              setStatusColor('red');
+            }
+          } else if (detectedType === 'dns') {
+            const rcode = String(statusValue);
+            const statusInfo = getDnsStatusText(rcode);
+            setStatus(statusInfo.text);
+            setStatusColor(statusInfo.color);
+            console.log('✅ Set DNS status:', statusInfo.text, 'color:', statusInfo.color);
+          } else {
+            setStatus('Unknown Type');
+            setStatusColor('gray');
+          }
+
+          // Extract response time
+          if (responseTimeResult?.result?.series?.[0]) {
+            const timeSeries = responseTimeResult.result.series[0];
+            const timeFields = timeSeries.fields;
+            
+            // Look for response_time or query_time_ms OR _value
+            const timeValueField = timeFields.find((f: Field) => 
+              f.name === 'response_time' ||
+              f.name === 'query_time_ms' ||
+              f.name === '_value' || 
+              f.name === 'Value' || 
+              f.name === 'value'
+            );
+            
+            if (timeValueField && timeValueField.values.length > 0) {
+              const timeValue = timeValueField.values[timeValueField.values.length - 1];
+              const time = typeof timeValue === 'number' ? timeValue : parseFloat(timeValue);
+              if (!isNaN(time)) {
+                setResponseTime(time);
+                console.log('✅ Set response time:', time, 'ms');
+              }
+            }
           }
         }
         
-        setServerName(extractedServerName);
-
-        // Determine query type
-        const queryType = options?.queryType || detectQueryType(tags, fields);
-        console.log('✅ Detected query type:', queryType);
-
-        if (queryType === 'http') {
-          processHttpResponse(fields);
-        } else if (queryType === 'dns') {
-          processDnsResponse(fields);
-        } else {
-          console.log('❌ Unknown query type');
-          setStatus('Unknown Type');
-          setStatusColor('gray');
-        }
-      } catch (err) {
-        console.error('Error processing response:', err);
+      } catch (err: any) {
+        console.error('StatusCode component error:', err);
+        setError(err.message || 'Failed to fetch status data');
         setStatus('Error');
         setStatusColor('red');
+      } finally {
+        setLoading(false);
       }
     };
 
-    const detectQueryType = (tags: any, fields: Field[]): 'http' | 'dns' | 'unknown' => {
-      // FIRST: Check field labels (InfluxDB 2.x style)
-      for (const field of fields) {
-        const fieldWithLabels = field as any;
-        if (fieldWithLabels.labels) {
-          if (fieldWithLabels.labels.tag1 === 'http' || fieldWithLabels.labels._measurement === 'http_response') {
-            console.log('✅ Detected HTTP from field labels');
-            return 'http';
-          }
-          if (fieldWithLabels.labels.tag1 === 'dns' || fieldWithLabels.labels._measurement === 'dns_query') {
-            console.log('✅ Detected DNS from field labels');
-            return 'dns';
-          }
-        }
-      }
-      
-      // SECOND: Check tags
-      if (tags.tag1 === 'http' || tags._measurement === 'http_response') {
-        console.log('✅ Detected HTTP from tags');
-        return 'http';
-      }
-      if (tags.tag1 === 'dns' || tags._measurement === 'dns_query') {
-        console.log('✅ Detected DNS from tags');
-        return 'dns';
-      }
-
-      // THIRD: Check field names
-      const fieldNames = fields.map(f => f.name.toLowerCase());
-      console.log('🔍 Checking field names:', fieldNames);
-      if (fieldNames.includes('http_response_code') || fieldNames.includes('status_code')) {
-        console.log('✅ Detected HTTP from field names');
-        return 'http';
-      }
-      if (fieldNames.includes('query_time_ms') || fieldNames.includes('rcode')) {
-        console.log('✅ Detected DNS from field names');
-        return 'dns';
-      }
-
-      console.log('❌ Could not detect query type');
-      return 'unknown';
-    };
-
-    const processHttpResponse = (fields: Field[]) => {
-      console.log('🔍 Processing HTTP response, fields:', fields.map(f => f.name));
-      
-      // Find status code field - check multiple possible names AND labels
-      let statusCodeValue = null;
-      let responseTimeValue = null;
-      
-      // First, try to find in field labels (for pivoted data)
-      const valueField = fields.find((f: Field) => f.name === 'value' || f.name === 'Value');
-      if (valueField) {
-        const fieldWithLabels = valueField as any;
-        if (fieldWithLabels.labels) {
-          console.log('🔍 Found value field with labels:', fieldWithLabels.labels);
-          
-          // Extract status_code from labels
-          if (fieldWithLabels.labels.status_code) {
-            statusCodeValue = fieldWithLabels.labels.status_code;
-            console.log('✅ Extracted status_code from labels:', statusCodeValue);
-          }
-          
-          // Extract response_time from labels (if exists)
-          if (fieldWithLabels.labels.response_time) {
-            responseTimeValue = fieldWithLabels.labels.response_time;
-            console.log('✅ Extracted response_time from labels:', responseTimeValue);
-          }
-        }
-      }
-      
-      // Try to find http_response_code and response_time as SEPARATE fields (after pivot)
-      const httpResponseCodeField = fields.find((f: Field) => 
-        f.name === 'http_response_code' || f.name === 'status_code'
-      );
-      const responseTimeFieldDirect = fields.find((f: Field) => 
-        f.name === 'response_time'
-      );
-      
-      console.log('🔍 Checking for separate pivoted fields - http_response_code:', httpResponseCodeField?.name, 'response_time:', responseTimeFieldDirect?.name);
-      
-      if (httpResponseCodeField && httpResponseCodeField.values && httpResponseCodeField.values.length > 0 && !statusCodeValue) {
-        statusCodeValue = httpResponseCodeField.values[httpResponseCodeField.values.length - 1];
-        console.log('✅ Extracted status_code from http_response_code field:', statusCodeValue);
-      }
-      
-      if (responseTimeFieldDirect && responseTimeFieldDirect.values && responseTimeFieldDirect.values.length > 0 && !responseTimeValue) {
-        responseTimeValue = responseTimeFieldDirect.values[responseTimeFieldDirect.values.length - 1];
-        console.log('✅ Extracted response_time from response_time field:', responseTimeValue);
-      }
-      
-      // If not found in labels, try to find as separate fields (non-pivoted data)
-      if (!statusCodeValue) {
-        const statusCodeField = fields.find((f: Field) => {
-          const fieldName = f.name.toLowerCase();
-          return fieldName.includes('status_code') ||
-                 fieldName.includes('http_response_code') ||
-                 fieldName === 'http_response_code' ||
-                 fieldName === 'status_code' ||
-                 fieldName === 'statuscode';
-        });
-        
-        if (statusCodeField && statusCodeField.values && statusCodeField.values.length > 0) {
-          statusCodeValue = statusCodeField.values[statusCodeField.values.length - 1];
-          console.log('✅ Extracted status_code from field values:', statusCodeValue);
-        }
-      }
-      
-      // Try to find response time as separate field if not in labels
-      if (!responseTimeValue) {
-        const responseTimeField = fields.find((f: Field) => {
-          const fieldName = f.name.toLowerCase();
-          return fieldName.includes('response_time') ||
-                 fieldName === 'response_time' ||
-                 fieldName === 'responsetime';
-        });
-        
-        if (responseTimeField && responseTimeField.values && responseTimeField.values.length > 0) {
-          responseTimeValue = responseTimeField.values[responseTimeField.values.length - 1];
-          console.log('✅ Extracted response_time from field values:', responseTimeValue);
-        }
-      }
-
-      console.log('🔍 Final values - status code:', statusCodeValue, 'response time:', responseTimeValue);
-
-      // Process status code
-      if (statusCodeValue !== null && statusCodeValue !== undefined) {
-        const statusCode = typeof statusCodeValue === 'number' ? statusCodeValue : parseFloat(statusCodeValue);
-
-        console.log('🔍 Parsed status code:', statusCode);
-
-        if (!isNaN(statusCode)) {
-          const statusInfo = getHttpStatusText(statusCode);
-          setStatus(statusInfo.text);
-          setStatusColor(statusInfo.color);
-          console.log('✅ Set HTTP status:', statusInfo.text, 'color:', statusInfo.color);
-        } else {
-          setStatus('Down');
-          setStatusColor('red');
-          console.log('❌ Invalid status code, setting Down');
-        }
-      } else {
-        setStatus('Down');
-        setStatusColor('red');
-        console.log('❌ No status code found, setting Down');
-      }
-
-      // Process response time
-      if (responseTimeValue !== null && responseTimeValue !== undefined) {
-        const time = typeof responseTimeValue === 'number' ? responseTimeValue : parseFloat(responseTimeValue);
-        if (!isNaN(time)) {
-          setResponseTime(time);
-          console.log('✅ Set response time:', time);
-        }
-      }
-    };
-
-    const processDnsResponse = (fields: Field[]) => {
-      // Find rcode field
-      const rcodeField = fields.find((f: Field) =>
-        f.name.toLowerCase().includes('rcode') ||
-        f.name === 'rcode'
-      );
-
-      // Find query_time_ms field (or any value field)
-      const timeField = fields.find((f: Field) =>
-        f.name.toLowerCase().includes('query_time') ||
-        f.name === 'query_time_ms' ||
-        f.name === '_value' ||
-        f.name === 'Value'
-      );
-
-      // Check rcode status
-      if (rcodeField && rcodeField.values && rcodeField.values.length > 0) {
-        const latestRcode = rcodeField.values[rcodeField.values.length - 1];
-        const rcodeValue = typeof latestRcode === 'string' ? latestRcode : String(latestRcode);
-
-        if (rcodeValue.toUpperCase() === 'NOERROR') {
-          setStatus('OK');
-          setStatusColor('green');
-        } else {
-          setStatus('Down');
-          setStatusColor('red');
-        }
-      } else {
-        setStatus('Down');
-        setStatusColor('red');
-      }
-
-      // Extract response time
-      if (timeField && timeField.values && timeField.values.length > 0) {
-        const latestTime = timeField.values[timeField.values.length - 1];
-        const time = typeof latestTime === 'number' ? latestTime : parseFloat(latestTime);
-        setResponseTime(!isNaN(time) ? time : null);
-      }
-    };
-
-    if (panelId) {
-      fetchData();
-      const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
-      return () => clearInterval(interval);
-    } else {
-      processQueryResult();
-    }
-  }, [panelId, queryResult, options]);
+    fetchData();
+    const interval = setInterval(fetchData, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, [panelId]);
 
   // Color scheme mapping
   const getColorClasses = (color: string) => {

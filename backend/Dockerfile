@@ -1,13 +1,16 @@
 FROM node:20-alpine
 
-# Install system dependencies for signal handling and health checks
+# Install system dependencies for signal handling, health checks, and Python CDP worker
 RUN apk add --no-cache \
     bash \
     curl \
     netcat-openbsd \
     sshpass \
     openssh-client \
-    tini
+    tini \
+    python3 \
+    py3-pip \
+ && python3 -m pip install --no-cache-dir paramiko
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \

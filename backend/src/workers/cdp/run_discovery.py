@@ -22,6 +22,12 @@ def run(seed_ips, username, password, protocol='cdp'):
 
     out = proc.stdout.decode("utf-8").strip()
     err = proc.stderr.decode("utf-8").strip()
+
+    # Forward any stderr from the inner worker so callers (Node) can see
+    # debug logs even when the worker succeeds.
+    if err:
+        print(err, file=sys.stderr, flush=True)
+
     if proc.returncode != 0:
         raise RuntimeError(f"Worker failed (code {proc.returncode}): {err or out}")
     if not out:
