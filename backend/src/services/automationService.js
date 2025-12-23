@@ -90,7 +90,7 @@ class AutomationService {
 
       return rules;
     } catch (error) {
-      console.error('Error fetching automation rules:', error);
+      console.error('Error fetching automation rules, coba tes:', error);
       throw error;
     }
   }

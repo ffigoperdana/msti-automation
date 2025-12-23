@@ -20,6 +20,7 @@ const ServerForm: React.FC<ServerFormProps> = ({ onSubmit, onCancel }) => {
     e.preventDefault();
     onSubmit(address, port);
   };
+  
 
   return (
     <div className="space-y-6">
@@ -44,7 +45,7 @@ const ServerForm: React.FC<ServerFormProps> = ({ onSubmit, onCancel }) => {
                   onChange={() => handleEnvironmentChange('blue')}
                   className="mr-2"
                 />
-                <span className="text-sm text-blue-600 font-medium">Blue (Production)</span>
+                <span className="text-sm text-blue-600 font-medium">Blue(Production)</span>
               </label>
               <label className="flex items-center">
                 <input
@@ -55,7 +56,7 @@ const ServerForm: React.FC<ServerFormProps> = ({ onSubmit, onCancel }) => {
                   onChange={() => handleEnvironmentChange('green')}
                   className="mr-2"
                 />
-                <span className="text-sm text-green-600 font-medium">Green (Staging)</span>
+                <span className="text-sm text-green-600 font-medium">Green  (Staging)</span>
               </label>
             </div>
           </div>
