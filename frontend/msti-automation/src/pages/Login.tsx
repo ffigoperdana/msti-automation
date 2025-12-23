@@ -38,7 +38,7 @@ const Login: React.FC = () => {
         <div className="max-w-md w-full space-y-8">
           <div>
             <h1 className="text-[#31406e] font-bold text-2xl text-center">
-              Welcome to MSInsight
+              Welcome to MSTI
             </h1>
           </div>
 
