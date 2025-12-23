@@ -44,6 +44,7 @@ router.get('/dashboards', requireAuth, getDashboards);
 router.get('/dashboards/:id', requireAuth, getDashboard);
 router.post('/dashboards', requireWrite, createDashboard);
 router.put('/dashboards/:id', requireWrite, updateDashboard);
+router.put('/dashboards/:id/layout', requireWrite, updateDashboardLayout);
 router.delete('/dashboards/:id', requireWrite, deleteDashboard);
 
 // Panel routes
