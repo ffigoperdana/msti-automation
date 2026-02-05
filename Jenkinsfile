@@ -170,11 +170,11 @@ pipeline {
                         export IMAGE_TAG=${IMAGE_TAG}
                         export DEPLOYMENT_TIMESTAMP=\$(date +%Y%m%d-%H%M%S)
                         
-                        # Pull latest images
-                        docker compose -f deployment/docker-compose.${env.NEXT_ENV}.yml pull
+                        # Pull latest images (use docker-compose with hyphen for compatibility)
+                        docker-compose -f deployment/docker-compose.${env.NEXT_ENV}.yml pull
                         
                         # Start new environment
-                        docker compose -f deployment/docker-compose.${env.NEXT_ENV}.yml up -d --force-recreate --remove-orphans
+                        docker-compose -f deployment/docker-compose.${env.NEXT_ENV}.yml up -d --force-recreate --remove-orphans
                         
                         echo "✅ ${env.NEXT_ENV} environment started"
                     """
@@ -239,7 +239,7 @@ pipeline {
                 dir("${DEPLOY_DIR}") {
                     sh """
                         # Gracefully stop old environment
-                        docker compose -f deployment/docker-compose.${env.CURRENT_ENV}.yml down --remove-orphans || true
+                        docker-compose -f deployment/docker-compose.${env.CURRENT_ENV}.yml down --remove-orphans || true
                         
                         echo "✅ Old ${env.CURRENT_ENV} environment stopped"
                     """
@@ -293,8 +293,8 @@ pipeline {
                     echo "🔄 Attempting automatic rollback to ${env.CURRENT_ENV}..."
                     sh """
                         cd ${DEPLOY_DIR}
-                        docker compose -f deployment/docker-compose.${env.NEXT_ENV}.yml down --remove-orphans || true
-                        docker compose -f deployment/docker-compose.${env.CURRENT_ENV}.yml up -d || true
+                        docker-compose -f deployment/docker-compose.${env.NEXT_ENV}.yml down --remove-orphans || true
+                        docker-compose -f deployment/docker-compose.${env.CURRENT_ENV}.yml up -d || true
                     """
                 }
             }
