@@ -159,22 +159,25 @@ pipeline {
             }
             steps {
                 echo "🚀 Deploying to ${env.NEXT_ENV} environment..."
-                dir("${DEPLOY_DIR}") {
+                dir("${DEPLOY_DIR}/deployment") {
                     sh """
-                        # Load environment variables
-                        if [ -f deployment/.env ]; then
-                            export \$(cat deployment/.env | grep -v '^#' | xargs)
+                        # Load environment variables from .env file
+                        if [ -f .env ]; then
+                            set -a
+                            . ./.env
+                            set +a
                         fi
                         
+                        # Override with build-specific values
                         export DOCKER_USERNAME=${DOCKER_USERNAME}
                         export IMAGE_TAG=${IMAGE_TAG}
                         export DEPLOYMENT_TIMESTAMP=\$(date +%Y%m%d-%H%M%S)
                         
                         # Pull latest images
-                        docker compose -f deployment/docker-compose.${env.NEXT_ENV}.yml pull
+                        docker compose -f docker-compose.${env.NEXT_ENV}.yml pull
                         
                         # Start new environment
-                        docker compose -f deployment/docker-compose.${env.NEXT_ENV}.yml up -d --force-recreate --remove-orphans
+                        docker compose -f docker-compose.${env.NEXT_ENV}.yml up -d --force-recreate --remove-orphans
                         
                         echo "✅ ${env.NEXT_ENV} environment started"
                     """
@@ -236,10 +239,10 @@ pipeline {
             }
             steps {
                 echo "🛑 Stopping old ${env.CURRENT_ENV} environment..."
-                dir("${DEPLOY_DIR}") {
+                dir("${DEPLOY_DIR}/deployment") {
                     sh """
                         # Gracefully stop old environment
-                        docker compose -f deployment/docker-compose.${env.CURRENT_ENV}.yml down --remove-orphans || true
+                        docker compose -f docker-compose.${env.CURRENT_ENV}.yml down --remove-orphans || true
                         
                         echo "✅ Old ${env.CURRENT_ENV} environment stopped"
                     """
@@ -292,9 +295,9 @@ pipeline {
                 if (env.CURRENT_ENV && env.CURRENT_ENV != 'none') {
                     echo "🔄 Attempting automatic rollback to ${env.CURRENT_ENV}..."
                     sh """
-                        cd ${DEPLOY_DIR}
-                        docker compose -f deployment/docker-compose.${env.NEXT_ENV}.yml down --remove-orphans || true
-                        docker compose -f deployment/docker-compose.${env.CURRENT_ENV}.yml up -d || true
+                        cd ${DEPLOY_DIR}/deployment
+                        docker compose -f docker-compose.${env.NEXT_ENV}.yml down --remove-orphans || true
+                        docker compose -f docker-compose.${env.CURRENT_ENV}.yml up -d || true
                     """
                 }
             }

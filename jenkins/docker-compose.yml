@@ -15,8 +15,9 @@ services:
     user: root  # Required for Docker socket access
     volumes:
       - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock  # Access host Docker
-      - /usr/bin/docker:/usr/bin/docker            # Docker CLI
+      - /var/run/docker.sock:/var/run/docker.sock  # Access host Docker daemon
+      - /usr/bin/docker:/usr/bin/docker:ro         # Docker CLI from host
+      - /usr/libexec/docker/cli-plugins:/usr/libexec/docker/cli-plugins:ro  # Compose plugin from host
       - /opt/msti-automation:/opt/msti-automation:rw  # Access deployment files
       # Mount host CA certificates to fix SSL issues
       - /etc/ssl/certs:/etc/ssl/certs:ro
