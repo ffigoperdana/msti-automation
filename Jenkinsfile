@@ -173,11 +173,11 @@ pipeline {
                         export IMAGE_TAG=${IMAGE_TAG}
                         export DEPLOYMENT_TIMESTAMP=\$(date +%Y%m%d-%H%M%S)
                         
-                        # Pull latest images
-                        docker compose -f docker-compose.${env.NEXT_ENV}.yml pull
+                        # Pull latest images (use project name to keep blue/green separate)
+                        docker compose -p msti-${env.NEXT_ENV} -f docker-compose.${env.NEXT_ENV}.yml pull
                         
-                        # Start new environment
-                        docker compose -f docker-compose.${env.NEXT_ENV}.yml up -d --force-recreate --remove-orphans
+                        # Start new environment (no --remove-orphans to avoid stopping other env)
+                        docker compose -p msti-${env.NEXT_ENV} -f docker-compose.${env.NEXT_ENV}.yml up -d --force-recreate
                         
                         echo "✅ ${env.NEXT_ENV} environment started"
                     """
@@ -241,8 +241,8 @@ pipeline {
                 echo "🛑 Stopping old ${env.CURRENT_ENV} environment..."
                 dir("${DEPLOY_DIR}/deployment") {
                     sh """
-                        # Gracefully stop old environment
-                        docker compose -f docker-compose.${env.CURRENT_ENV}.yml down --remove-orphans || true
+                        # Gracefully stop old environment (use project name)
+                        docker compose -p msti-${env.CURRENT_ENV} -f docker-compose.${env.CURRENT_ENV}.yml down || true
                         
                         echo "✅ Old ${env.CURRENT_ENV} environment stopped"
                     """
@@ -296,8 +296,8 @@ pipeline {
                     echo "🔄 Attempting automatic rollback to ${env.CURRENT_ENV}..."
                     sh """
                         cd ${DEPLOY_DIR}/deployment
-                        docker compose -f docker-compose.${env.NEXT_ENV}.yml down --remove-orphans || true
-                        docker compose -f docker-compose.${env.CURRENT_ENV}.yml up -d || true
+                        docker compose -p msti-${env.NEXT_ENV} -f docker-compose.${env.NEXT_ENV}.yml down || true
+                        docker compose -p msti-${env.CURRENT_ENV} -f docker-compose.${env.CURRENT_ENV}.yml up -d || true
                     """
                 }
             }
