@@ -21,8 +21,13 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# Ensure Node trusts system CA bundle (needed for Prisma engine downloads)
+# Ensure Node trusts system CA bundle (needed for Prisma engine downloads behind SSL inspection)
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+
+# Configure npm to trust system CA
+RUN npm config set cafile /etc/ssl/certs/ca-certificates.crt && \
+    npm config set strict-ssl false
 
 # Copy package files first for better caching
 COPY package*.json ./
