@@ -26,6 +26,8 @@ interface PanelData {
   statusCodeQuery?: string; // Status code query (http_response_code or rcode)
   responseTimeQuery?: string; // Response time query (response_time or query_time_ms)
   dnsQuery?: string; // DNS query (returns both rcode and query_time_ms)
+  pingStatusQuery?: string; // Ping packets_received query
+  pingResponseTimeQuery?: string; // Ping average_response_ms query
   refreshInterval?: number; // Add refresh interval
   gridSpan?: number; // Grid column span (1, 2, or 3)
   options: {
@@ -41,7 +43,7 @@ interface PanelData {
     timeRange?: string; // -5m, -15m, -1h, etc.
     // Status-code specific options
     serverName?: string;
-    queryType?: 'http' | 'dns';
+    queryType?: 'http' | 'dns' | 'ping';
   };
   queries: Array<{
     refId: string;
@@ -410,6 +412,25 @@ const PanelForm: React.FC = () => {
               }
             ]
           };
+        } else if (queryType === 'ping') {
+          panelPayload = {
+            ...panelData,
+            config: {
+              gridSpan: panelData.gridSpan || 1
+            },
+            queries: [
+              {
+                refId: 'pingStatus',
+                dataSourceId: panelData.dataSourceId,
+                query: panelData.pingStatusQuery
+              },
+              {
+                refId: 'pingResponseTime',
+                dataSourceId: panelData.dataSourceId,
+                query: panelData.pingResponseTimeQuery
+              }
+            ]
+          };
         }
       } else if (panelData.type === 'table') {
         // Table panel with mode support
@@ -524,10 +545,15 @@ const PanelForm: React.FC = () => {
                panelData.dataSourceId && 
                panelData.statusCodeQuery && 
                panelData.responseTimeQuery;
-      } else {
+      } else if (queryType === 'dns') {
         return panelData.title && 
                panelData.dataSourceId && 
                panelData.dnsQuery;
+      } else if (queryType === 'ping') {
+        return panelData.title && 
+               panelData.dataSourceId && 
+               panelData.pingStatusQuery && 
+               panelData.pingResponseTimeQuery;
       }
     }
     return panelData.title && 
@@ -715,16 +741,17 @@ const PanelForm: React.FC = () => {
                   onChange={(e) => {
                     setPanelData(prev => ({
                       ...prev,
-                      options: { ...prev.options, queryType: e.target.value as 'http' | 'dns' }
+                      options: { ...prev.options, queryType: e.target.value as 'http' | 'dns' | 'ping' }
                     }));
                   }}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
                 >
                   <option value="http">HTTP (2 queries: status + response time)</option>
                   <option value="dns">DNS (1 query: rcode + query_time_ms)</option>
+                  <option value="ping">PING (2 queries: packets_received + response time)</option>
                 </select>
                 <p className="mt-1 text-sm text-gray-500">
-                  HTTP requires 2 separate queries. DNS query returns both rcode and query_time_ms.
+                  HTTP/PING requires 2 separate queries. DNS query returns both rcode and query_time_ms.
                 </p>
               </div>
 
@@ -782,6 +809,61 @@ const PanelForm: React.FC = () => {
                 />
                     <p className="mt-1 text-sm text-gray-500">
                       Query for HTTP response time. Use |{'>'} last() to get latest value.
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* PING Mode - 2 Queries */}
+              {panelData.options.queryType === 'ping' && (
+                <>
+                  <div>
+                    <label htmlFor="pingStatusQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                      Packets Received Query (ping status)
+                    </label>
+                    <textarea
+                      id="pingStatusQuery"
+                      name="pingStatusQuery"
+                      value={panelData.pingStatusQuery || ''}
+                      onChange={handleInputChange}
+                      rows={6}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                      placeholder={`from(bucket: "telegraf")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["tag1"] == "ping")
+  |> filter(fn: (r) => r["_field"] == "packets_received")
+  |> filter(fn: (r) => r["url"] == "10.8.254.253")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+  |> yield(name: "mean")`}
+                      required
+                    />
+                    <p className="mt-1 text-sm text-gray-500">
+                      Query for packets_received. Value {'>'} 0 = OK, Value = 0 = DOWN. Use |{'>'} last() to get latest value.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="pingResponseTimeQuery" className="block text-sm font-medium text-gray-700 mb-2">
+                      Response Time Query (average_response_ms)
+                    </label>
+                    <textarea
+                      id="pingResponseTimeQuery"
+                      name="pingResponseTimeQuery"
+                      value={panelData.pingResponseTimeQuery || ''}
+                      onChange={handleInputChange}
+                      rows={6}
+                      className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 font-mono text-sm"
+                      placeholder={`from(bucket: "telegraf")
+  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)
+  |> filter(fn: (r) => r["tag1"] == "ping")
+  |> filter(fn: (r) => r["_field"] == "average_response_ms")
+  |> filter(fn: (r) => r["url"] == "10.8.254.253")
+  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)
+  |> yield(name: "mean")`}
+                      required
+                    />
+                    <p className="mt-1 text-sm text-gray-500">
+                      Query for ping response time (average_response_ms). Use |{'>'} last() to get latest value.
                     </p>
                   </div>
                 </>
@@ -860,6 +942,39 @@ const PanelForm: React.FC = () => {
                     showPreview={true}
                   />
                 </div>
+              )}
+
+              {/* PING Mode Validators */}
+              {panelData.options.queryType === 'ping' && (
+                <>
+                  {panelData.dataSourceId && panelData.pingStatusQuery && (
+                    <div className="border-t pt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Ping Status Query Validation</h4>
+                      <QueryValidator
+                        dataSourceId={panelData.dataSourceId}
+                        query={panelData.pingStatusQuery}
+                        onValidationResult={() => {}}
+                        onQueryChange={() => {}}
+                        panelType="status-code"
+                        showPreview={true}
+                      />
+                    </div>
+                  )}
+                  
+                  {panelData.dataSourceId && panelData.pingResponseTimeQuery && (
+                    <div className="border-t pt-4">
+                      <h4 className="text-sm font-medium text-gray-700 mb-2">Ping Response Time Query Validation</h4>
+                      <QueryValidator
+                        dataSourceId={panelData.dataSourceId}
+                        query={panelData.pingResponseTimeQuery}
+                        onValidationResult={() => {}}
+                        onQueryChange={() => {}}
+                        panelType="status-code"
+                        showPreview={true}
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ) : panelData.type === 'netflow-timeseries' ? (

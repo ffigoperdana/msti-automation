@@ -874,6 +874,9 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
                     } else if (field.labels.tag1 === 'dns' || field.labels._measurement === 'dns_query') {
                       queryType = 'dns';
                       console.log('✅ Detected DNS from labels');
+                    } else if (field.labels.tag1 === 'ping' || field.labels._measurement === 'ping') {
+                      queryType = 'ping';
+                      console.log('✅ Detected PING from labels');
                     }
                   }
                 });
@@ -893,6 +896,9 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
               } else if (tags.tag1 === 'dns' || tags._measurement === 'dns_query') {
                 queryType = 'dns';
                 console.log('✅ Detected DNS from tags');
+              } else if (tags.tag1 === 'ping' || tags._measurement === 'ping') {
+                queryType = 'ping';
+                console.log('✅ Detected PING from tags');
               }
               
               // FOURTH: Check field names to determine type if not detected yet
@@ -906,6 +912,9 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
                 } else if (fieldNames.includes('query_time_ms') || fieldNames.includes('rcode')) {
                   queryType = 'dns';
                   console.log('✅ Detected DNS from field names');
+                } else if (fieldNames.includes('packets_received') || fieldNames.includes('average_response_ms')) {
+                  queryType = 'ping';
+                  console.log('✅ Detected PING from field names');
                 }
               }
               
@@ -930,12 +939,25 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
                     statusInfo.status = rcode;
                     console.log('✅ Extracted rcode:', rcode);
                   }
+                } else if (queryType === 'ping') {
+                  // For ping, check packets_received or _value
+                  const packetsField = serie.fields.find((f: any) =>
+                    f.name.toLowerCase().includes('packets_received') ||
+                    f.name === '_value'
+                  );
+                  if (packetsField && packetsField.values && packetsField.values.length > 0) {
+                    const packets = packetsField.values[packetsField.values.length - 1];
+                    statusInfo.status = packets > 0 ? 'OK' : 'DOWN';
+                    statusInfo.packetsReceived = packets;
+                    console.log('✅ Extracted packets_received:', packets, '-> Status:', statusInfo.status);
+                  }
                 }
                 
                 // Extract response time
                 const timeField = serie.fields.find((f: any) =>
                   f.name.toLowerCase().includes('response_time') ||
-                  f.name.toLowerCase().includes('query_time')
+                  f.name.toLowerCase().includes('query_time') ||
+                  f.name.toLowerCase().includes('average_response')
                 );
                 if (timeField && timeField.values && timeField.values.length > 0) {
                   statusInfo.responseTime = timeField.values[timeField.values.length - 1];
@@ -967,6 +989,7 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
                   <span className={`px-2 py-1 rounded text-xs font-medium ${
                     queryType === 'http' ? 'bg-green-100 text-green-700' :
                     queryType === 'dns' ? 'bg-purple-100 text-purple-700' :
+                    queryType === 'ping' ? 'bg-cyan-100 text-cyan-700' :
                     'bg-gray-100 text-gray-700'
                   }`}>
                     {queryType.toUpperCase()}
@@ -996,11 +1019,18 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
                 {statusInfo.status && (
                   <div className="p-3 bg-white rounded border border-blue-200">
                     <div className="text-xs text-gray-600 mb-1">Sample Status:</div>
-                    <div className="text-lg font-bold text-gray-800">
+                    <div className={`text-lg font-bold ${
+                      (queryType === 'http' && statusInfo.status === 200) ||
+                      (queryType === 'dns' && statusInfo.status === 'NOERROR') ||
+                      (queryType === 'ping' && statusInfo.status === 'OK')
+                        ? 'text-green-600' : 'text-red-600'
+                    }`}>
                       {queryType === 'http' ? (
                         `HTTP ${statusInfo.status} ${statusInfo.status === 200 ? '(OK)' : ''}`
                       ) : queryType === 'dns' ? (
                         `${statusInfo.status} ${statusInfo.status === 'NOERROR' ? '(OK)' : '(Error)'}`
+                      ) : queryType === 'ping' ? (
+                        `${statusInfo.status} ${statusInfo.packetsReceived !== undefined ? `(${statusInfo.packetsReceived} packets)` : ''}`
                       ) : (
                         statusInfo.status
                       )}
@@ -1026,11 +1056,12 @@ const QueryValidator: React.FC<QueryValidatorProps> = ({
                 {queryType === 'unknown' && (
                   <div className="p-3 bg-red-50 border border-red-200 rounded">
                     <p className="text-sm text-red-700">
-                      ⚠️ Could not detect query type (HTTP or DNS). Ensure your query returns:
+                      ⚠️ Could not detect query type (HTTP, DNS, or PING). Ensure your query returns:
                     </p>
                     <ul className="text-xs text-red-600 mt-2 ml-4 list-disc">
                       <li>For HTTP: <code className="bg-red-100 px-1">http_response_code</code> or <code className="bg-red-100 px-1">status_code</code> field</li>
                       <li>For DNS: <code className="bg-red-100 px-1">rcode</code> field</li>
+                      <li>For PING: <code className="bg-red-100 px-1">packets_received</code> or <code className="bg-red-100 px-1">average_response_ms</code> field</li>
                     </ul>
                   </div>
                 )}

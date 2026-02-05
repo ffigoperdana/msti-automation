@@ -45,8 +45,9 @@ const cdpService = {
         for (const group of credentialGroups) {
           const seeds = Array.isArray(group?.seedIps) ? group.seedIps : [];
           if (seeds.length === 0) continue;
-          console.log('[CDP] Running python worker for seeds', seeds, 'with protocol', protocol);
-          const pythonGraph = await runPythonDiscovery(seeds, group.username || '', group.password || '', protocol);
+          const postAuthSteps = Array.isArray(group?.postAuthSteps) ? group.postAuthSteps : [];
+          console.log('[CDP] Running python worker for seeds', seeds, 'with protocol', protocol, 'postAuthSteps', postAuthSteps.length);
+          const pythonGraph = await runPythonDiscovery(seeds, group.username || '', group.password || '', protocol, postAuthSteps);
           aggregated.nodes.push(...pythonGraph.nodes);
           aggregated.links.push(...pythonGraph.links);
         }
@@ -174,9 +175,17 @@ const cdpService = {
     await prisma.cdpDiscovery.update({ where: { id }, data: { graph } });
     return { success: true };
   },
+
+  async exportToDrawio(id) {
+    const graph = await this.getDiscoveryGraph(id);
+    if (!graph || !graph.nodes || !graph.links) {
+      throw new Error('No graph data available for this discovery');
+    }
+    return runPythonDrawioExport(graph.nodes, graph.links);
+  },
 };
 
-async function runPythonDiscovery(seedIps, username, password, protocol = 'cdp') {
+async function runPythonDiscovery(seedIps, username, password, protocol = 'cdp', postAuthSteps = []) {
   const workerPath = path.join(process.cwd(), 'src', 'workers', 'cdp', 'run_discovery.py');
   return new Promise((resolve, reject) => {
     const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
@@ -185,7 +194,7 @@ async function runPythonDiscovery(seedIps, username, password, protocol = 'cdp')
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
-    const payload = JSON.stringify({ seedIps, username, password, protocol });
+    const payload = JSON.stringify({ seedIps, username, password, protocol, postAuthSteps });
     proc.stdin.write(payload);
     proc.stdin.end();
 
@@ -204,6 +213,33 @@ async function runPythonDiscovery(seedIps, username, password, protocol = 'cdp')
         console.error('[CDP] Failed parsing python stdout:', stdout);
         reject(e);
       }
+    });
+  });
+}
+
+async function runPythonDrawioExport(nodes, links) {
+  const workerPath = path.join(process.cwd(), 'src', 'workers', 'cdp', 'export_drawio.py');
+  return new Promise((resolve, reject) => {
+    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+    const proc = spawn(pythonCmd, [workerPath], {
+      env: { ...process.env },
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    const payload = JSON.stringify({ nodes, links, useNetplot: false });
+    proc.stdin.write(payload);
+    proc.stdin.end();
+
+    let stdout = '';
+    let stderr = '';
+    proc.stdout.on('data', (d) => { stdout += d.toString(); });
+    proc.stderr.on('data', (d) => { stderr += d.toString(); console.error('[DRAWIO][PY STDERR]', d.toString()); });
+    proc.on('error', reject);
+    proc.on('close', (code) => {
+      if (code !== 0) return reject(new Error(stderr || `Python exited ${code}`));
+      const out = (stdout || '').trim();
+      if (!out) return reject(new Error('Python returned empty output'));
+      resolve(out);
     });
   });
 }

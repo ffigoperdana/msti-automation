@@ -4,7 +4,10 @@ import subprocess
 import os
 
 
-def run(seed_ips, username, password, protocol='cdp'):
+def run(seed_ips, username, password, protocol='cdp', post_auth_steps=None):
+    if post_auth_steps is None:
+        post_auth_steps = []
+    
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"
     # Pass credentials via env to avoid args exposure
@@ -18,6 +21,7 @@ def run(seed_ips, username, password, protocol='cdp'):
         "username": username,
         "password": password,
         "protocol": protocol,
+        "postAuthSteps": post_auth_steps,
     }).encode("utf-8"), stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, timeout=300)
 
     out = proc.stdout.decode("utf-8").strip()
@@ -41,7 +45,8 @@ if __name__ == "__main__":
         payload.get("seedIps", []),
         payload.get("username", ""),
         payload.get("password", ""),
-        payload.get("protocol", "cdp")
+        payload.get("protocol", "cdp"),
+        payload.get("postAuthSteps", [])
     )
     print(json.dumps(result))
 

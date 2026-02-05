@@ -10,7 +10,9 @@ RUN apk add --no-cache \
     tini \
     python3 \
     py3-pip \
- && python3 -m pip install --no-cache-dir --break-system-packages paramiko
+    git \
+ && python3 -m pip install --no-cache-dir --break-system-packages paramiko \
+ && python3 -m pip install --no-cache-dir --break-system-packages git+https://github.com/amrelhusseiny/drawio_network_plot.git
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \

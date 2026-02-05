@@ -1,9 +1,16 @@
 import api from './api';
 
+// Post-authentication step: either a command or a password input
+export interface PostAuthStep {
+  type: 'command' | 'password';
+  value: string;
+}
+
 export interface CredentialGroup {
   seedIps: string[];
   username: string;
   password: string;
+  postAuthSteps?: PostAuthStep[]; // Optional sequence of commands/passwords after login
 }
 
 export interface StartDiscoveryPayload {
@@ -52,6 +59,14 @@ export const cdpService = {
   async updateDiscoveryGraph(id: string, graph: { nodes: Array<{ id: string; label: string; mgmtIp?: string; type?: string }>; links: Array<{ id: string; source: string; target: string; linkType?: string }> }) {
     const { data } = await api.put(`/cdp/discoveries/${id}/graph`, { graph });
     return data as { success: boolean };
+  },
+
+  // Export to Draw.io via backend (uses Python for professional Cisco icons if available)
+  async exportToDrawioBackend(id: string): Promise<Blob> {
+    const { data } = await api.get(`/cdp/discoveries/${id}/export/drawio`, {
+      responseType: 'blob',
+    });
+    return data;
   },
 };
 

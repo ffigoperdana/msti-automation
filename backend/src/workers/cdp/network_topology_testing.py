@@ -18,9 +18,10 @@ def log(msg: str):
 #  CORE DISCOVERY CLASS
 # ================================================================
 class NetworkTopologyDiscovery:
-    def __init__(self, username, password):
+    def __init__(self, username, password, post_auth_steps=None):
         self.username = username
         self.password = password
+        self.post_auth_steps = post_auth_steps or []  # list of {type: 'command'|'password', value: string}
         self.discovered_devices = {}   # ip -> device_info
         self.topologies = []           # list of topology dicts
         self.visited_ips = set()
@@ -30,6 +31,48 @@ class NetworkTopologyDiscovery:
     # ----------------------------------------------------------------
     #  HELPERS
     # ----------------------------------------------------------------
+    def execute_post_auth_steps(self, connection):
+        """Execute post-authentication steps (commands and passwords) after initial login.
+        
+        This handles scenarios like:
+        - Enable mode: send 'en 14' then send enable password
+        - Multiple privilege escalations
+        - Any command/password sequence needed after SSH login
+        """
+        if not self.post_auth_steps:
+            return
+        
+        log(f"Executing {len(self.post_auth_steps)} post-auth steps")
+        for idx, step in enumerate(self.post_auth_steps):
+            step_type = step.get('type', 'command')
+            step_value = step.get('value', '')
+            
+            if not step_value:
+                continue
+            
+            log(f"Post-auth step {idx + 1}: type={step_type}")
+            
+            try:
+                if step_type == 'command':
+                    # Send command and wait for response/prompt
+                    connection.send(step_value + "\n")
+                    sleep(1)
+                    # Read any output (might be asking for password)
+                    if connection.recv_ready():
+                        connection.recv(65535)
+                elif step_type == 'password':
+                    # Send password (typically after a password prompt)
+                    connection.send(step_value + "\n")
+                    sleep(1)
+                    # Read any output after password
+                    if connection.recv_ready():
+                        connection.recv(65535)
+            except Exception as e:
+                log(f"Error in post-auth step {idx + 1}: {e}")
+        
+        # Small delay to let the shell settle after post-auth
+        sleep(0.5)
+
     def get_device_icon(self, device_type):
         icon_mapping = {
             "router": "router.jpg",
@@ -419,6 +462,10 @@ class NetworkTopologyDiscovery:
         try:
             connection = ssh.invoke_shell()
             self.send_command(connection, "term length 0")
+            
+            # Execute post-authentication steps (e.g., enable mode, additional passwords)
+            self.execute_post_auth_steps(connection)
+            
             hostname = self.detect_hostname(connection=connection, ip=start_ip)
             dtype = self.detect_device_type_from_inventory(connection)
             device_info = {"ip": start_ip, "hostname": hostname, "device_type": dtype}

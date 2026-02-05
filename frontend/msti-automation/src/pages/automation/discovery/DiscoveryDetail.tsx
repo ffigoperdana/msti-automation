@@ -31,6 +31,21 @@ const DiscoveryDetail: React.FC = () => {
     }
   };
 
+  // Transform graph nodes to include type information
+  const transformedNodes = graph?.nodes.map(node => ({
+    ...node,
+    type: (node as any).type || (node as any).deviceType || 'unknown',
+    arp: (node as any).arp || [],
+    role: (node as any).role,
+    chips: (node as any).chips || [],
+  })) || [];
+
+  const transformedLinks = graph?.links.map(link => ({
+    ...link,
+    srcIfName: (link as any).srcIfName || (link as any).sourceInterface,
+    dstIfName: (link as any).dstIfName || (link as any).targetInterface,
+  })) || [];
+
   return (
     <div className="space-y-6">
       <div className="bg-white p-4 rounded-lg shadow-sm flex items-center justify-between">
@@ -48,11 +63,13 @@ const DiscoveryDetail: React.FC = () => {
 
       <div className="bg-white p-4 rounded-lg shadow-sm">
         {loading.graph ? (
-          <div>Loading graph...</div>
+          <div className="flex items-center justify-center h-96">
+            <div className="text-gray-600">Loading topology...</div>
+          </div>
         ) : graph ? (
-          <TopologyGraph nodes={graph.nodes} links={graph.links} />
+          <TopologyGraph nodes={transformedNodes} links={transformedLinks} discoveryId={id} />
         ) : (
-          <div className="text-gray-600">Graph belum tersedia.</div>
+          <div className="text-gray-600 text-center py-8">Graph not available yet.</div>
         )}
       </div>
     </div>

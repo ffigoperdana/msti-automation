@@ -69,6 +69,18 @@ router.put('/discoveries/:id/graph', async (req, res) => {
   }
 });
 
+// Export discovery graph to Draw.io XML format
+router.get('/discoveries/:id/export/drawio', async (req, res) => {
+  try {
+    const xml = await cdpService.exportToDrawio(req.params.id);
+    res.set('Content-Type', 'application/xml');
+    res.set('Content-Disposition', `attachment; filename="topology-${req.params.id}.drawio"`);
+    res.send(xml);
+  } catch (error) {
+    res.status(400).json({ error: error.message || 'Failed to export to Draw.io' });
+  }
+});
+
 export default router;
 
 

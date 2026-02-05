@@ -30,7 +30,8 @@ import DiscoveryDetail from './pages/automation/discovery/DiscoveryDetail'
 import TelegrafList from './pages/automation/telegraf/TelegrafList'
 import TelegrafForm from './pages/automation/telegraf/TelegrafForm'
 import UserManagement from './pages/settings/UserManagement'
-import Login from './pages/Login'
+import AutoLoginPage from './pages/AutoLoginPage'
+import DevLoginPage from './pages/DevLoginPage'
 import { SourceProvider } from './context/SourceContext'
 import { ApiProvider } from './context/ApiContext'
 import useAuthStore from './store/authStore'
@@ -54,7 +55,8 @@ function App() {
         <Router>
           <Routes>
             {/* Public Routes */}
-            <Route path="/login" element={<Login />} />
+            <Route path="/login" element={<AutoLoginPage />} />
+            <Route path="/dev" element={<DevLoginPage />} />
             
             {/* Protected Routes */}
             <Route path="/" element={

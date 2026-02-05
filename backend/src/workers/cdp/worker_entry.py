@@ -19,10 +19,11 @@ def main():
     username = payload.get("username") or os.environ.get("CDP_USERNAME") or "cisco"
     password = payload.get("password") or os.environ.get("CDP_PASSWORD") or "cisco"
     protocol = payload.get("protocol", "cdp")  # default to CDP for backward compatibility
+    post_auth_steps = payload.get("postAuthSteps", [])  # list of {type: 'command'|'password', value: string}
 
-    print(f"worker_entry: received seeds={seeds}, protocol={protocol}", file=sys.stderr, flush=True)
+    print(f"worker_entry: received seeds={seeds}, protocol={protocol}, postAuthSteps={len(post_auth_steps)}", file=sys.stderr, flush=True)
 
-    discovery = NetworkTopologyDiscovery(username, password)
+    discovery = NetworkTopologyDiscovery(username, password, post_auth_steps=post_auth_steps)
     topologies = discovery.discover_all_topologies(seeds, protocol)
 
     # Convert to simple nodes/links

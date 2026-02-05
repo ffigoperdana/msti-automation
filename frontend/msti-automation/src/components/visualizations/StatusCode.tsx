@@ -6,7 +6,7 @@ interface StatusCodeProps {
   queryResult?: any;
   options?: {
     serverName?: string;
-    queryType?: 'http' | 'dns';
+    queryType?: 'http' | 'dns' | 'ping';
   };
 }
 
@@ -50,6 +50,15 @@ const getHttpStatusText = (code: number): { text: string; color: string } => {
   }
 };
 
+// Ping status mapping - packets_received > 0 = OK, = 0 = DOWN
+const getPingStatusText = (packetsReceived: number): { text: string; color: string } => {
+  if (packetsReceived > 0) {
+    return { text: 'OK', color: 'green' };
+  } else {
+    return { text: 'DOWN', color: 'red' };
+  }
+};
+
 
 const StatusCode: React.FC<StatusCodeProps> = ({ panelId }) => {
   const [status, setStatus] = useState<string>('Unknown');
@@ -84,7 +93,78 @@ const StatusCode: React.FC<StatusCodeProps> = ({ panelId }) => {
         // Check if this is DNS mode (single query)
         const isDnsMode = response.length === 1 && response[0].refId === 'dns';
         
-        if (isDnsMode) {
+        // Check if this is PING mode (2 queries: pingStatus + pingResponseTime)
+        const isPingMode = response.length >= 2 && response.some((r: any) => r.refId === 'pingStatus');
+        
+        if (isPingMode) {
+          // PING Mode - 2 queries: packets_received (status) and average_response_ms (response time)
+          console.log('✅ Detected query type: PING (2 query mode)');
+          
+          const pingStatusResult = response.find((r: any) => r.refId === 'pingStatus');
+          const pingResponseTimeResult = response.find((r: any) => r.refId === 'pingResponseTime');
+          
+          if (!pingStatusResult?.result?.series?.[0]) {
+            throw new Error('No ping status data found');
+          }
+          
+          const pingSeries = pingStatusResult.result.series[0];
+          const pingFields = pingSeries.fields;
+          
+          // Extract URL/IP from labels or tags
+          let extractedUrl = 'Unknown Device';
+          pingFields.forEach((field: any) => {
+            if (field.labels) {
+              extractedUrl = field.labels.url || field.labels.host || field.labels.server || extractedUrl;
+            }
+          });
+          if (extractedUrl === 'Unknown Device' && pingSeries.tags) {
+            extractedUrl = pingSeries.tags.url || pingSeries.tags.host || pingSeries.tags.server || extractedUrl;
+          }
+          setServerName(extractedUrl);
+          console.log('✅ Extracted ping target:', extractedUrl);
+          
+          // Extract packets_received value (_value field)
+          const packetsField = pingFields.find((f: Field) => 
+            f.name === 'packets_received' || f.name === '_value' || f.name === 'Value' || f.name === 'value'
+          );
+          
+          if (packetsField && packetsField.values.length > 0) {
+            const packetsValue = packetsField.values[packetsField.values.length - 1];
+            const packets = typeof packetsValue === 'number' ? packetsValue : parseFloat(packetsValue);
+            
+            if (!isNaN(packets)) {
+              const statusInfo = getPingStatusText(packets);
+              setStatus(statusInfo.text);
+              setStatusColor(statusInfo.color);
+              console.log('✅ Set PING status:', statusInfo.text, 'from packets_received:', packets);
+            } else {
+              setStatus('No Data');
+              setStatusColor('gray');
+            }
+          } else {
+            setStatus('No Data');
+            setStatusColor('gray');
+          }
+          
+          // Extract response time from second query
+          if (pingResponseTimeResult?.result?.series?.[0]) {
+            const timeSeries = pingResponseTimeResult.result.series[0];
+            const timeFields = timeSeries.fields;
+            
+            const timeValueField = timeFields.find((f: Field) => 
+              f.name === 'average_response_ms' || f.name === '_value' || f.name === 'Value' || f.name === 'value'
+            );
+            
+            if (timeValueField && timeValueField.values.length > 0) {
+              const timeValue = timeValueField.values[timeValueField.values.length - 1];
+              const time = typeof timeValue === 'number' ? timeValue : parseFloat(timeValue);
+              if (!isNaN(time)) {
+                setResponseTime(time);
+                console.log('✅ Set PING response time:', time, 'ms');
+              }
+            }
+          }
+        } else if (isDnsMode) {
           // DNS Mode - single query returns both rcode and query_time_ms
           const dnsResult = response[0];
           if (!dnsResult?.result?.series?.[0]) {
