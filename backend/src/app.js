@@ -146,7 +146,7 @@ process.on('SIGTERM', async () => {
 });
 
 process.on('SIGINT', async () => {
-  console.log('🛑 SIGINT received, closing Redis connection...');
+  console.log('🛑 SIGINT received, closing Redis connection.....');
   if (redisClient) {
     await redisClient.quit();
   }
