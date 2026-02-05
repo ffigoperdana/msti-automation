@@ -3,6 +3,7 @@ FROM node:20-alpine
 # Install system dependencies for signal handling, health checks, and Python CDP worker
 RUN apk add --no-cache \
     bash \
+    ca-certificates \
     curl \
     netcat-openbsd \
     sshpass \
@@ -19,6 +20,9 @@ RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
 WORKDIR /app
+
+# Ensure Node trusts system CA bundle (needed for Prisma engine downloads)
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 # Copy package files first for better caching
 COPY package*.json ./
